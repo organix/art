@@ -30,6 +30,7 @@ THE SOFTWARE.
 */
 
 #include <stdlib.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <assert.h>
 
@@ -41,34 +42,34 @@ object:
 */
 
 typedef struct object * OOP;
-#define KIND(kind) OOP kind(OOP self, OOP args)
-typedef OOP (*DPROC)(OOP self, OOP args);
+//#define KIND(kind) OOP kind(OOP self, OOP args)
+//#define KIND(kind) OOP kind(OOP self, OOP arg_1, OOP arg_2, OOP arg_3, OOP arg_4)
+//#define KIND(kind) OOP kind(OOP self, ...)
+#define KIND(kind) OOP kind(OOP self, va_list va)
+//typedef OOP (*DISP)(OOP self, OOP args);
+//typedef OOP (*DISP)(OOP self, OOP arg_1, OOP arg_2, OOP arg_3, OOP arg_4);
+//typedef OOP (*DISP)(OOP self, ...);
+typedef OOP (*DISP)(OOP self, va_list args);
 
 struct object {
-	DPROC			kind;
+	DISP			kind;
 };
 
 OOP
-object_new(DPROC kind, size_t size)
+object_call(OOP obj, ...)
 {
-	OOP self = (OOP)calloc(1, size);
-	self->kind = kind;
-	return self;
-}
-#define	object_alloc(structure, kind)	((structure *)object_new((kind), sizeof(structure)))
+	va_list args;
 
-KIND(object_kind)
-{
-	return self;
+	va_start(args, obj);
+	OOP result = (obj->kind)(obj, args);
+	va_end(args);
+	return result;
 }
 
-struct object undef_object = { object_kind };
-#define	undef_oop	(&undef_object)
-struct object nil_object = { object_kind };
-#define	nil_oop	(&nil_object)
+#define	take_arg()	va_arg(va, OOP)
 
-#define	object_call(obj, args)	(((obj)->kind)((obj), (args)))
-
+//#define	object_call(obj, args)	(((obj)->kind)((obj), args))
+#if 0
 #define	object_call_1(obj, arg_1)	\
 	object_call((obj), finger_1_new((arg_1)))
 #define	object_call_2(obj, arg_1, arg_2)	\
@@ -77,6 +78,38 @@ struct object nil_object = { object_kind };
 	object_call((obj), finger_3_new((arg_1), (arg_2), (arg_3)))
 #define	object_call_4(obj, arg_1, arg_2, arg_3, arg_4)	\
 	object_call((obj), finger_4_new((arg_1), (arg_2), (arg_3), (arg_4)))
+#endif
+#if 0
+#define	object_call_1(obj, arg_1)	\
+	object_call((obj), (arg_1))
+#define	object_call_2(obj, arg_1, arg_2)	\
+	object_call((obj), (arg_1), (arg_2))
+#define	object_call_3(obj, arg_1, arg_2, arg_3)	\
+	object_call((obj), (arg_1), (arg_2), (arg_3))
+#define	object_call_4(obj, arg_1, arg_2, arg_3, arg_4)	\
+	object_call((obj), (arg_1), (arg_2), (arg_3), (arg_4))
+#endif
+
+OOP
+object_new(DISP kind, size_t size)
+{
+	OOP self = (OOP)calloc(1, size);
+	self->kind = kind;
+	return self;
+}
+#define	object_alloc(structure, kind)	((structure *)object_new((kind), sizeof(structure)))
+
+KIND(object_kind);
+
+struct object undef_object = { object_kind };
+#define	undef_oop	(&undef_object)
+struct object nil_object = { object_kind };
+#define	nil_oop	(&nil_object)
+
+KIND(object_kind)
+{
+	return undef_oop;
+}
 
 /*
 symbol:
@@ -104,7 +137,7 @@ KIND(symbol_kind)
 {
 	if (symbol_kind == self->kind) {
 		struct symbol * this = as_symbol(self);
-		/* no message protocol for symbol */
+		/* no object protocol for symbol */
 	}
 	return undef_oop;
 }
@@ -164,7 +197,7 @@ KIND(pair_kind)
 {
 	if (pair_kind == self->kind) {
 		struct pair * this = as_pair(self);
-		/* no message protocol for pair */
+		/* no object protocol for pair */
 	}
 	return undef_oop;
 }
@@ -236,14 +269,14 @@ KIND(finger_1_kind)
 {
 	if (finger_1_kind == self->kind) {
 		struct finger * this = as_finger(self);
-		if (finger_2_kind == args->kind) {
-			struct finger * ap = as_finger(args);
-			if (ap->item_1 == put_oop) {
-				return finger_2_new(this->item_1, ap->item_2);
-			}
-			if (ap->item_1 == push_oop) {
-				return finger_2_new(ap->item_2, this->item_1);
-			}
+		OOP a = this->item_1;
+		OOP cmd = take_arg();
+		if (cmd == put_oop) {
+			OOP x = take_arg();
+			return finger_2_new(a, x);
+		} else if (cmd == push_oop) {
+			OOP x = take_arg();
+			return finger_2_new(x, a);
 		}
 	}
 	return undef_oop;
@@ -253,25 +286,19 @@ KIND(finger_2_kind)
 {
 	if (finger_2_kind == self->kind) {
 		struct finger * this = as_finger(self);
-		if (finger_1_kind == args->kind) {
-			struct finger * ap = as_finger(args);
-			if (ap->item_1 == pop_oop) {
-				return pair_new(this->item_1, 
-						finger_1_new(this->item_2));
-			}
-			if (ap->item_1 == pull_oop) {
-				return pair_new(this->item_2, 
-						finger_1_new(this->item_1));
-			}
-		}
-		if (finger_2_kind == args->kind) {
-			struct finger * ap = as_finger(args);
-			if (ap->item_1 == put_oop) {
-				return finger_3_new(this->item_1, this->item_2, ap->item_2);
-			}
-			if (ap->item_1 == push_oop) {
-				return finger_3_new(ap->item_2, this->item_1, this->item_2);
-			}
+		OOP a = this->item_1;
+		OOP b = this->item_2;
+		OOP cmd = take_arg();
+		if (cmd == pop_oop) {
+			return pair_new(a, finger_1_new(b));
+		} else if (cmd == pull_oop) {
+			return pair_new(b, finger_1_new(a));
+		} else if (cmd == put_oop) {
+			OOP x = take_arg();
+			return finger_3_new(a, b, x);
+		} else if (cmd == push_oop) {
+			OOP x = take_arg();
+			return finger_3_new(x, a, b);
 		}
 	}
 	return undef_oop;
@@ -281,25 +308,20 @@ KIND(finger_3_kind)
 {
 	if (finger_3_kind == self->kind) {
 		struct finger * this = as_finger(self);
-		if (finger_1_kind == args->kind) {
-			struct finger * ap = as_finger(args);
-			if (ap->item_1 == pop_oop) {
-				return pair_new(this->item_1, 
-						finger_2_new(this->item_2, this->item_3));
-			}
-			if (ap->item_1 == pull_oop) {
-				return pair_new(this->item_3, 
-						finger_2_new(this->item_1, this->item_2));
-			}
-		}
-		if (finger_2_kind == args->kind) {
-			struct finger * ap = as_finger(args);
-			if (ap->item_1 == put_oop) {
-				return finger_4_new(this->item_1, this->item_2, this->item_3, ap->item_2);
-			}
-			if (ap->item_1 == push_oop) {
-				return finger_4_new(ap->item_2, this->item_1, this->item_2, this->item_3);
-			}
+		OOP a = this->item_1;
+		OOP b = this->item_2;
+		OOP c = this->item_3;
+		OOP cmd = take_arg();
+		if (cmd == pop_oop) {
+			return pair_new(a, finger_2_new(b, c));
+		} else if (cmd == pull_oop) {
+			return pair_new(c, finger_2_new(a, b));
+		} else if (cmd == put_oop) {
+			OOP x = take_arg();
+			return finger_4_new(a, b, c, x);
+		} else if (cmd == push_oop) {
+			OOP x = take_arg();
+			return finger_4_new(x, a, b, c);
 		}
 	}
 	return undef_oop;
@@ -309,16 +331,15 @@ KIND(finger_4_kind)
 {
 	if (finger_4_kind == self->kind) {
 		struct finger * this = as_finger(self);
-		if (finger_1_kind == args->kind) {
-			struct finger * ap = as_finger(args);
-			if (ap->item_1 == pop_oop) {
-				return pair_new(this->item_1, 
-						finger_3_new(this->item_2, this->item_3, this->item_4));
-			}
-			if (ap->item_1 == pull_oop) {
-				return pair_new(this->item_4, 
-						finger_3_new(this->item_1, this->item_2, this->item_3));
-			}
+		OOP a = this->item_1;
+		OOP b = this->item_2;
+		OOP c = this->item_3;
+		OOP d = this->item_4;
+		OOP cmd = take_arg();
+		if (cmd == pop_oop) {
+			return pair_new(a, finger_3_new(b, c, d));
+		} else if (cmd == pull_oop) {
+			return pair_new(d, finger_3_new(a, b, c));
 		}
 	}
 	return undef_oop;
@@ -337,34 +358,29 @@ KIND(queue_kind)
 {
 	if (queue_kind == self->kind) {
 		struct pair * this = as_pair(self);
-		if (finger_1_kind == args->kind) {
-			struct finger * ap = as_finger(args);
-			if (ap->item_1 == empty_p_oop) {
-				if (this->h == nil_oop) {
-					return _t_oop;
-				}
-				return _f_oop;
+		OOP cmd = take_arg();
+		if (cmd == empty_p_oop) {
+			if (this->h == nil_oop) {
+				return _t_oop;
 			}
-			if (ap->item_1 == take_x_oop) {
-				if (this->h != nil_oop) {
-					struct pair * entry = as_pair(this->h);
-					this->h = entry->t;
-					return entry->h;
-				}
+			return _f_oop;
+		} else if (cmd == take_x_oop) {
+			if (this->h != nil_oop) {
+				struct pair * entry = as_pair(this->h);
+				this->h = entry->t;
+				OOP item = entry->h;  // entry is garbage after this (use custom free?)
+				return item;
 			}
-		}
-		if (finger_2_kind == args->kind) {
-			struct finger * ap = as_finger(args);
-			if (ap->item_1 == give_x_oop) {
-				OOP oop = pair_new(ap->item_2, nil_oop);
-				if (this->h == nil_oop) {
-					this->h = oop;
-				} else {
-					as_pair(this->t)->t = oop;
-				}
-				this->t = oop;
-				return self;
+		} else if (cmd == give_x_oop) {
+			OOP item = take_arg();
+			OOP oop = pair_new(item, nil_oop);  // could be a custom allocator
+			if (this->h == nil_oop) {
+				this->h = oop;
+			} else {
+				as_pair(this->t)->t = oop;
 			}
+			this->t = oop;
+			return self;
 		}
 	}
 	return undef_oop;
@@ -399,6 +415,9 @@ struct dict {
 #define	as_dict(oop)	((struct dict *)(oop))
 
 KIND(dict_kind);
+KIND(empty_dict_kind);
+struct object empty_dict = { empty_dict_kind };
+#define	empty_dict_oop	(&empty_dict)
 
 OOP
 dict_new(OOP name, OOP value, OOP next)
@@ -410,51 +429,54 @@ dict_new(OOP name, OOP value, OOP next)
 	return (OOP)this;
 }
 
-KIND(dict_kind)
-{
-	TRACE(fprintf(stderr, "%p(dict_kind).[%p %p %p %p]\n", self, as_finger(args)->item_1, as_finger(args)->item_2, as_finger(args)->item_3, as_finger(args)->item_4));
-	if (dict_kind == self->kind) {
-		struct dict * this = as_dict(self);
-		if (finger_2_kind == args->kind) {
-			struct finger * ap = as_finger(args);
-			if (ap->item_1 == lookup_oop) {
-				if (ap->item_2 == this->name) {  // NOTE: identity comparison on names
-					return this->value;
-				}
-				return object_call(this->next, args);  // delegate to next entry
-			}
-		}
-		if (finger_3_kind == args->kind) {
-			struct finger * ap = as_finger(args);
-			if (ap->item_1 == bind_oop) {
-				return dict_new(ap->item_2, ap->item_3, self);
-			}
-		}
-	}
-	return undef_oop;
-}
-
 KIND(empty_dict_kind)
 {
-	TRACE(fprintf(stderr, "%p(empty_dict_kind).[%p %p %p %p]\n", self, as_finger(args)->item_1, as_finger(args)->item_2, as_finger(args)->item_3, as_finger(args)->item_4));
 	if (empty_dict_kind == self->kind) {
-		if (finger_2_kind == args->kind) {
-			struct finger * ap = as_finger(args);
-			if (ap->item_1 == lookup_oop) {
-				return undef_oop;
-			}
-		}
-		if (finger_3_kind == args->kind) {
-			struct finger * ap = as_finger(args);
-			if (ap->item_1 == bind_oop) {
-				return dict_new(ap->item_2, ap->item_3, self);
-			}
+		TRACE(fprintf(stderr, "%p(empty_dict_kind)\n", self));
+		OOP cmd = take_arg();
+		TRACE(fprintf(stderr, "  %p: cmd=%p\n", self, cmd));
+		if (cmd == lookup_oop) {
+			OOP name = take_arg();
+			TRACE(fprintf(stderr, "  %p: name=%p\n", self, name));
+			return undef_oop;
+		} else if (cmd == bind_oop) {
+			OOP name = take_arg();
+			OOP value = take_arg();
+			TRACE(fprintf(stderr, "  %p: name=%p value=%p\n", self, name, value));
+			return dict_new(name, value, self);
 		}
 	}
 	return undef_oop;
 }
 
-struct object empty_dict = { empty_dict_kind };
+KIND(dict_kind)
+{
+	if (dict_kind == self->kind) {
+//		struct dict * this = as_dict(self);  -- moved inside "do" loop...
+		TRACE(fprintf(stderr, "%p(dict_kind)\n", self));
+		OOP cmd = take_arg();
+		TRACE(fprintf(stderr, "  %p: cmd=%p\n", self, cmd));
+		if (cmd == lookup_oop) {
+			OOP name = take_arg();
+			TRACE(fprintf(stderr, "  %p: name=%p\n", self, name));
+			do {
+				struct dict * this = as_dict(self);  // init/update "this"
+				TRACE(fprintf(stderr, "  %p(dict_kind, %p, %p, %p)\n", this, this->name, this->value, this->next));
+				if (name == this->name) {  // NOTE: identity comparison on names
+					return this->value;
+				}
+				self = this->next;  // iterate to simulate tail-recursion
+			} while (dict_kind == self->kind);
+			return object_call(self, lookup_oop, name);  // delegate call
+		} else if (cmd == bind_oop) {
+			OOP name = take_arg();
+			OOP value = take_arg();
+			TRACE(fprintf(stderr, "  %p: name=%p value=%p\n", self, name, value));
+			return dict_new(name, value, self);
+		}
+	}
+	return undef_oop;
+}
 
 /*
 integer:
@@ -485,27 +507,24 @@ KIND(integer_kind)
 {
 	if (integer_kind == self->kind) {
 		struct integer * this = as_integer(self);
-		if (finger_2_kind == args->kind) {
-			struct finger * ap = as_finger(args);
-			if (ap->item_1 == eq_p_oop) {
-				OOP other = ap->item_2;
-				if (other == self) {  // compare identities
+		OOP cmd = take_arg();
+		if (cmd == eq_p_oop) {
+			OOP other = take_arg();
+			if (other == self) {  // compare identities
+				return _t_oop;
+			}
+			if (integer_kind == other->kind) {
+				struct integer * that = as_integer(other);
+				if (that->n == this->n) {  // compare values
 					return _t_oop;
 				}
-				if (integer_kind == other->kind) {
-					struct integer * that = as_integer(other);
-					if (that->n == this->n) {  // compare values
-						return _t_oop;
-					}
-				}
-				return _f_oop;
 			}
-			if (ap->item_1 == add_oop) {
-				OOP other = ap->item_2;
-				if (integer_kind == other->kind) {
-					struct integer * that = as_integer(other);
-					return integer_new(this->n + that->n);
-				}
+			return _f_oop;
+		} else if (cmd == add_oop) {
+			OOP other = take_arg();
+			if (integer_kind == other->kind) {
+				struct integer * that = as_integer(other);
+				return integer_new(this->n + that->n);
 			}
 		}
 	}
@@ -523,6 +542,7 @@ struct integer _1_integer = { { integer_kind }, 1 };
 finger tree:
 	An efficient functional deque data-structure of arbitrary size.
 */
+#if 0 /* FINGER TREE */
 
 struct finger_tree {
 	struct object	o;
@@ -555,6 +575,7 @@ ft_many_new(OOP left, OOP mid, OOP right) {
 
 KIND(ft_zero_kind)
 {
+	OOP args = take_arg();
 	if (ft_zero_kind == self->kind) {
 		struct finger_tree * this = (struct finger_tree *)self;
 		if (finger_2_kind == args->kind) {
@@ -572,6 +593,7 @@ KIND(ft_zero_kind)
 
 KIND(ft_one_kind)
 {
+	OOP args = take_arg();
 	if (ft_one_kind == self->kind) {
 		struct finger_tree * this = (struct finger_tree *)self;
 		if (finger_1_kind == args->kind) {
@@ -604,6 +626,7 @@ KIND(ft_one_kind)
 
 KIND(ft_many_kind)
 {
+	OOP args = take_arg();
 	if (ft_many_kind == self->kind) {
 		struct finger_tree * this = (struct finger_tree *)self;
 		if (finger_1_kind == args->kind) {
@@ -618,20 +641,20 @@ KIND(ft_many_kind)
 									fp->item_1,
 									(OOP)ft_one_new(rfp->item_1));
 						} else {
-							struct pair * pp = (struct pair *)object_call(this->right, args);  // delegate to right
+							struct pair * pp = (struct pair *)object_call_1(this->right, args);  // delegate to right
 							OOP left = (OOP)finger_1_new(pp->h);
 							return pair_new(
 									fp->item_1,
 									(OOP)ft_many_new(left, this->mid, pp->t));
 						}
 					} else {
-						struct pair * pp = (struct pair *)object_call(this->mid, args);  // delegate to mid
+						struct pair * pp = (struct pair *)object_call_1(this->mid, args);  // delegate to mid
 						return pair_new(
 								fp->item_1,
 								(OOP)ft_many_new(pp->h, pp->t, this->right));
 					}
 				} else {
-					struct pair * pp = (struct pair *)object_call(this->left, args);  // delegate to left
+					struct pair * pp = (struct pair *)object_call_1(this->left, args);  // delegate to left
 					return pair_new(
 							pp->h,
 							(OOP)ft_many_new(pp->t, this->mid, this->right));
@@ -662,6 +685,7 @@ KIND(ft_many_kind)
 	}
 	return undef_oop;
 }
+#endif /* FINGER TREE */
 
 /*
 	Unit tests
@@ -692,28 +716,29 @@ run_tests()
 	OOP x_oop = symbol_new("x");
 	TRACE(fprintf(stderr, "x_oop = %p\n", x_oop));
 	TRACE(fprintf(stderr, "as_symbol(x_oop)->s = \"%s\"\n", as_symbol(x_oop)->s));
-	OOP args_oop = finger_2_new(lookup_oop, x_oop);
-	TRACE(fprintf(stderr, "args_oop = %p\n", args_oop));
-	struct finger * fp = as_finger(args_oop);
-	TRACE(fprintf(stderr, "finger: %p [%p %p %p %p]\n", fp->o.kind, 
-		fp->item_1, fp->item_2, fp->item_3, fp->item_4));
-	OOP result = object_call(&empty_dict, args_oop);
+	OOP result = object_call(empty_dict_oop, lookup_oop, x_oop);
 	TRACE(fprintf(stderr, "result = %p\n", result));
 	assert(undef_oop == result);
 	
 	OOP _42_oop = integer_new(42);
 	TRACE(fprintf(stderr, "_42_oop = %p\n", _42_oop));
 	TRACE(fprintf(stderr, "as_integer(_42_oop)->n = %d\n", as_integer(_42_oop)->n));
-	OOP env_oop = object_call_3(&empty_dict, bind_oop, x_oop, _42_oop);
+	OOP env_oop = object_call(empty_dict_oop, bind_oop, x_oop, _42_oop);
 	TRACE(fprintf(stderr, "env_oop = %p\n", env_oop));
-	result = object_call_2(env_oop, lookup_oop, x_oop);
+	result = object_call(env_oop, lookup_oop, x_oop);
 	TRACE(fprintf(stderr, "result = %p\n", result));
 	assert(_42_oop == result);
 
 	OOP y_oop = symbol_new("y");
 	TRACE(fprintf(stderr, "y_oop = %p\n", y_oop));
 	TRACE(fprintf(stderr, "as_symbol(y_oop)->s = \"%s\"\n", as_symbol(y_oop)->s));
-	result = object_call_2(env_oop, lookup_oop, y_oop);
+	env_oop = object_call(env_oop, bind_oop, y_oop, minus_1_oop);
+	TRACE(fprintf(stderr, "env_oop = %p\n", env_oop));
+
+	OOP z_oop = symbol_new("z");
+	TRACE(fprintf(stderr, "z_oop = %p\n", z_oop));
+	TRACE(fprintf(stderr, "as_symbol(z_oop)->s = \"%s\"\n", as_symbol(z_oop)->s));
+	result = object_call(env_oop, lookup_oop, z_oop);
 	TRACE(fprintf(stderr, "result = %p\n", result));
 	assert(undef_oop == result);
 
@@ -753,25 +778,25 @@ run_tests()
 	OOP z_integer_oop = integer_new('Z');
 	OOP queue_oop = queue_new();
 	TRACE(fprintf(stderr, "queue_oop = %p\n", queue_oop));
-	result = object_call_1(queue_oop, empty_p_oop);
+	result = object_call(queue_oop, empty_p_oop);
 	assert(_t_oop == result);
 	OOP n_integer_oop = a_integer_oop;
-	while (object_call_2(n_integer_oop, eq_p_oop, z_integer_oop) != _t_oop) {
-		queue_oop = object_call_2(queue_oop, give_x_oop, n_integer_oop);
+	while (object_call(n_integer_oop, eq_p_oop, z_integer_oop) != _t_oop) {
+		queue_oop = object_call(queue_oop, give_x_oop, n_integer_oop);
 		TRACE(fprintf(stderr, "queue_oop = %p ^ [%c]\n", queue_oop, as_integer(n_integer_oop)->n));
-		n_integer_oop = object_call_2(n_integer_oop, add_oop, _1_oop);
+		n_integer_oop = object_call(n_integer_oop, add_oop, _1_oop);
 	}
-	result = object_call_1(queue_oop, empty_p_oop);
+	result = object_call(queue_oop, empty_p_oop);
 	assert(_f_oop == result);
 	n_integer_oop = a_integer_oop;
-	while (object_call_2(n_integer_oop, eq_p_oop, z_integer_oop) != _t_oop) {
-		OOP i_integer_oop = object_call_1(queue_oop, take_x_oop);
+	while (object_call(n_integer_oop, eq_p_oop, z_integer_oop) != _t_oop) {
+		OOP i_integer_oop = object_call(queue_oop, take_x_oop);
 		TRACE(fprintf(stderr, "queue_oop = [%c] ^ %p\n", as_integer(i_integer_oop)->n, queue_oop));
-		result = object_call_2(i_integer_oop, eq_p_oop, n_integer_oop);
+		result = object_call(i_integer_oop, eq_p_oop, n_integer_oop);
 		assert(_t_oop == result);
-		n_integer_oop = object_call_2(n_integer_oop, add_oop, _1_oop);
+		n_integer_oop = object_call(n_integer_oop, add_oop, _1_oop);
 	}
-	result = object_call_1(queue_oop, empty_p_oop);
+	result = object_call(queue_oop, empty_p_oop);
 	assert(_t_oop == result);
 }
 
