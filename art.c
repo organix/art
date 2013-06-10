@@ -34,6 +34,8 @@ THE SOFTWARE.
 #include <stdio.h>
 #include <assert.h>
 
+#undef	_ENABLE_FINGER_TREE_	/**/
+
 #define	TRACE(x)	x		/* enable tracing */
 
 /*
@@ -42,13 +44,7 @@ object:
 */
 
 typedef struct object * OOP;
-//#define KIND(kind) OOP kind(OOP self, OOP args)
-//#define KIND(kind) OOP kind(OOP self, OOP arg_1, OOP arg_2, OOP arg_3, OOP arg_4)
-//#define KIND(kind) OOP kind(OOP self, ...)
-#define KIND(kind) OOP kind(OOP self, va_list va)
-//typedef OOP (*DISP)(OOP self, OOP args);
-//typedef OOP (*DISP)(OOP self, OOP arg_1, OOP arg_2, OOP arg_3, OOP arg_4);
-//typedef OOP (*DISP)(OOP self, ...);
+#define KIND(kind) OOP kind(OOP self, va_list args)
 typedef OOP (*DISP)(OOP self, va_list args);
 
 struct object {
@@ -66,29 +62,7 @@ object_call(OOP obj, ...)
 	return result;
 }
 
-#define	take_arg()	va_arg(va, OOP)
-
-//#define	object_call(obj, args)	(((obj)->kind)((obj), args))
-#if 0
-#define	object_call_1(obj, arg_1)	\
-	object_call((obj), finger_1_new((arg_1)))
-#define	object_call_2(obj, arg_1, arg_2)	\
-	object_call((obj), finger_2_new((arg_1), (arg_2)))
-#define	object_call_3(obj, arg_1, arg_2, arg_3)	\
-	object_call((obj), finger_3_new((arg_1), (arg_2), (arg_3)))
-#define	object_call_4(obj, arg_1, arg_2, arg_3, arg_4)	\
-	object_call((obj), finger_4_new((arg_1), (arg_2), (arg_3), (arg_4)))
-#endif
-#if 0
-#define	object_call_1(obj, arg_1)	\
-	object_call((obj), (arg_1))
-#define	object_call_2(obj, arg_1, arg_2)	\
-	object_call((obj), (arg_1), (arg_2))
-#define	object_call_3(obj, arg_1, arg_2, arg_3)	\
-	object_call((obj), (arg_1), (arg_2), (arg_3))
-#define	object_call_4(obj, arg_1, arg_2, arg_3, arg_4)	\
-	object_call((obj), (arg_1), (arg_2), (arg_3), (arg_4))
-#endif
+#define	take_arg()	va_arg(args, OOP)
 
 OOP
 object_new(DISP kind, size_t size)
@@ -168,6 +142,14 @@ struct symbol lookup_symbol = { { symbol_kind }, "lookup" };
 #define	lookup_oop	((OOP)&lookup_symbol)
 struct symbol add_symbol = { { symbol_kind }, "add" };
 #define	add_oop	((OOP)&add_symbol)
+struct symbol create_symbol = { { symbol_kind }, "create" };
+#define	create_oop	((OOP)&create_symbol)
+struct symbol send_symbol = { { symbol_kind }, "send" };
+#define	send_oop	((OOP)&send_symbol)
+struct symbol become_symbol = { { symbol_kind }, "become" };
+#define	become_oop	((OOP)&become_symbol)
+struct symbol dispatch_symbol = { { symbol_kind }, "dispatch" };
+#define	dispatch_oop	((OOP)&dispatch_symbol)
 
 /*
 pair:
@@ -202,6 +184,200 @@ KIND(pair_kind)
 	return undef_oop;
 }
 
+/*
+queue:
+	An efficient mutable (stateful) queue data-structure built from pairs.
+
+	item := o.take!()		-- remove and return 'item' from the head of the queue
+	boolean := o.empty?()	-- return true if queue is empty, otherwise false
+	o := o.give!(item)		-- add 'item' to the tail of the queue
+*/
+
+KIND(queue_kind)
+{
+	if (queue_kind == self->kind) {
+		struct pair * this = as_pair(self);
+		OOP cmd = take_arg();
+		if (cmd == empty_p_oop) {
+			if (this->h == nil_oop) {
+				return _t_oop;
+			}
+			return _f_oop;
+		} else if (cmd == take_x_oop) {
+			if (this->h != nil_oop) {
+				struct pair * entry = as_pair(this->h);
+				this->h = entry->t;
+				OOP item = entry->h;  // entry is garbage after this (use custom free?)
+				return item;
+			}
+		} else if (cmd == give_x_oop) {
+			OOP item = take_arg();
+			OOP oop = pair_new(item, nil_oop);  // could be a custom allocator
+			if (this->h == nil_oop) {
+				this->h = oop;
+			} else {
+				as_pair(this->t)->t = oop;
+			}
+			this->t = oop;
+			return self;
+		}
+	}
+	return undef_oop;
+}
+
+OOP
+queue_new() {
+	struct pair * this = object_alloc(struct pair, queue_kind);
+	this->h = nil_oop;
+	this->t = nil_oop;
+	return (OOP)this;
+}
+
+/*
+dict:
+	Dictionaries define mappings from names to values.
+	
+	In this implementation, each node holds a single 'name'/'value' pair.
+	The 'next' pointer delegates to a linear chain of dictionaries.
+
+	x := o.lookup(name)		-- return value 'x' bound to 'name', or undefined
+	o' := o.bind(name, x)	-- return new dictionary with 'name' bound to 'x'
+*/
+
+struct dict {
+	struct object	o;
+	OOP				name;
+	OOP				value;
+	OOP				next;
+};
+
+#define	as_dict(oop)	((struct dict *)(oop))
+
+KIND(dict_kind);
+KIND(empty_dict_kind);
+struct object empty_dict = { empty_dict_kind };
+#define	empty_dict_oop	(&empty_dict)
+
+OOP
+dict_new(OOP name, OOP value, OOP next)
+{
+	struct dict * this = object_alloc(struct dict, dict_kind);
+	this->name = name;
+	this->value = value;
+	this->next = next;
+	return (OOP)this;
+}
+
+KIND(empty_dict_kind)
+{
+	if (empty_dict_kind == self->kind) {
+		TRACE(fprintf(stderr, "%p(empty_dict_kind)\n", self));
+		OOP cmd = take_arg();
+		TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
+		if (cmd == lookup_oop) {
+			OOP name = take_arg();
+			TRACE(fprintf(stderr, "  %p: name=%p\n", self, name));
+			return undef_oop;
+		} else if (cmd == bind_oop) {
+			OOP name = take_arg();
+			OOP value = take_arg();
+			TRACE(fprintf(stderr, "  %p: name=%p value=%p\n", self, name, value));
+			return dict_new(name, value, self);
+		}
+	}
+	return undef_oop;
+}
+
+KIND(dict_kind)
+{
+	if (dict_kind == self->kind) {
+//		struct dict * this = as_dict(self);  -- moved inside "do" loop...
+		TRACE(fprintf(stderr, "%p(dict_kind)\n", self));
+		OOP cmd = take_arg();
+		TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
+		if (cmd == lookup_oop) {
+			OOP name = take_arg();
+			TRACE(fprintf(stderr, "  %p: name=%p\n", self, name));
+			do {
+				struct dict * this = as_dict(self);  // init/update "this"
+				TRACE(fprintf(stderr, "  %p(dict_kind, %p, %p, %p)\n", this, this->name, this->value, this->next));
+				if (name == this->name) {  // NOTE: identity comparison on names
+					return this->value;
+				}
+				self = this->next;  // iterate to simulate tail-recursion
+			} while (dict_kind == self->kind);
+			return object_call(self, lookup_oop, name);  // delegate call
+		} else if (cmd == bind_oop) {
+			OOP name = take_arg();
+			OOP value = take_arg();
+			TRACE(fprintf(stderr, "  %p: name=%p value=%p\n", self, name, value));
+			return dict_new(name, value, self);
+		}
+	}
+	return undef_oop;
+}
+
+/*
+integer:
+	Integers are constants with a numeric representation 'n'.
+
+	boolean := o.eq?(x)		-- return true if 'o' is equal to 'x', otherwise false
+	integer := o.add(x)		-- return new integer equal to ('o' + 'x')
+*/
+
+struct integer {
+	struct object	o;
+	int				n;
+};
+
+#define	as_integer(oop)	((struct integer *)(oop))
+
+KIND(integer_kind);
+
+OOP
+integer_new(int value)
+{
+	struct integer * this = object_alloc(struct integer, integer_kind);
+	this->n = value;
+	return (OOP)this;
+}
+
+KIND(integer_kind)
+{
+	if (integer_kind == self->kind) {
+		struct integer * this = as_integer(self);
+		OOP cmd = take_arg();
+		if (cmd == eq_p_oop) {
+			OOP other = take_arg();
+			if (other == self) {  // compare identities
+				return _t_oop;
+			}
+			if (integer_kind == other->kind) {
+				struct integer * that = as_integer(other);
+				if (that->n == this->n) {  // compare values
+					return _t_oop;
+				}
+			}
+			return _f_oop;
+		} else if (cmd == add_oop) {
+			OOP other = take_arg();
+			if (integer_kind == other->kind) {
+				struct integer * that = as_integer(other);
+				return integer_new(this->n + that->n);
+			}
+		}
+	}
+	return undef_oop;
+}
+
+struct integer minus_1_integer = { { integer_kind }, -1 };
+#define	minus_1_oop	((OOP)&minus_1_integer)
+struct integer _0_integer = { { integer_kind }, 0 };
+#define	_0_oop	((OOP)&_0_integer)
+struct integer _1_integer = { { integer_kind }, 1 };
+#define	_1_oop	((OOP)&_1_integer)
+
+#ifdef _ENABLE_FINGER_TREE_
 /*
 finger:
 	Small collections of 1 to 4 items.
@@ -346,203 +522,9 @@ KIND(finger_4_kind)
 }
 
 /*
-queue:
-	An efficient mutable (stateful) queue data-structure built from pairs.
-
-	item := o.take!()		-- remove and return 'item' from the head of the queue
-	boolean := o.empty?()	-- return true if queue is empty, otherwise false
-	o := o.give!(item)		-- add 'item' to the tail of the queue
-*/
-
-KIND(queue_kind)
-{
-	if (queue_kind == self->kind) {
-		struct pair * this = as_pair(self);
-		OOP cmd = take_arg();
-		if (cmd == empty_p_oop) {
-			if (this->h == nil_oop) {
-				return _t_oop;
-			}
-			return _f_oop;
-		} else if (cmd == take_x_oop) {
-			if (this->h != nil_oop) {
-				struct pair * entry = as_pair(this->h);
-				this->h = entry->t;
-				OOP item = entry->h;  // entry is garbage after this (use custom free?)
-				return item;
-			}
-		} else if (cmd == give_x_oop) {
-			OOP item = take_arg();
-			OOP oop = pair_new(item, nil_oop);  // could be a custom allocator
-			if (this->h == nil_oop) {
-				this->h = oop;
-			} else {
-				as_pair(this->t)->t = oop;
-			}
-			this->t = oop;
-			return self;
-		}
-	}
-	return undef_oop;
-}
-
-OOP
-queue_new() {
-	struct pair * this = object_alloc(struct pair, queue_kind);
-	this->h = nil_oop;
-	this->t = nil_oop;
-	return (OOP)this;
-}
-
-/*
-dict:
-	Dictionaries define mappings from names to values.
-	
-	In this implementation, each node holds a single 'name'/'value' pair.
-	The 'next' pointer delegates to a linear chain of dictionaries.
-
-	x := o.lookup(name)		-- return value 'x' bound to 'name', or undefined
-	o' := o.bind(name, x)	-- return new dictionary with 'name' bound to 'x'
-*/
-
-struct dict {
-	struct object	o;
-	OOP				name;
-	OOP				value;
-	OOP				next;
-};
-
-#define	as_dict(oop)	((struct dict *)(oop))
-
-KIND(dict_kind);
-KIND(empty_dict_kind);
-struct object empty_dict = { empty_dict_kind };
-#define	empty_dict_oop	(&empty_dict)
-
-OOP
-dict_new(OOP name, OOP value, OOP next)
-{
-	struct dict * this = object_alloc(struct dict, dict_kind);
-	this->name = name;
-	this->value = value;
-	this->next = next;
-	return (OOP)this;
-}
-
-KIND(empty_dict_kind)
-{
-	if (empty_dict_kind == self->kind) {
-		TRACE(fprintf(stderr, "%p(empty_dict_kind)\n", self));
-		OOP cmd = take_arg();
-		TRACE(fprintf(stderr, "  %p: cmd=%p\n", self, cmd));
-		if (cmd == lookup_oop) {
-			OOP name = take_arg();
-			TRACE(fprintf(stderr, "  %p: name=%p\n", self, name));
-			return undef_oop;
-		} else if (cmd == bind_oop) {
-			OOP name = take_arg();
-			OOP value = take_arg();
-			TRACE(fprintf(stderr, "  %p: name=%p value=%p\n", self, name, value));
-			return dict_new(name, value, self);
-		}
-	}
-	return undef_oop;
-}
-
-KIND(dict_kind)
-{
-	if (dict_kind == self->kind) {
-//		struct dict * this = as_dict(self);  -- moved inside "do" loop...
-		TRACE(fprintf(stderr, "%p(dict_kind)\n", self));
-		OOP cmd = take_arg();
-		TRACE(fprintf(stderr, "  %p: cmd=%p\n", self, cmd));
-		if (cmd == lookup_oop) {
-			OOP name = take_arg();
-			TRACE(fprintf(stderr, "  %p: name=%p\n", self, name));
-			do {
-				struct dict * this = as_dict(self);  // init/update "this"
-				TRACE(fprintf(stderr, "  %p(dict_kind, %p, %p, %p)\n", this, this->name, this->value, this->next));
-				if (name == this->name) {  // NOTE: identity comparison on names
-					return this->value;
-				}
-				self = this->next;  // iterate to simulate tail-recursion
-			} while (dict_kind == self->kind);
-			return object_call(self, lookup_oop, name);  // delegate call
-		} else if (cmd == bind_oop) {
-			OOP name = take_arg();
-			OOP value = take_arg();
-			TRACE(fprintf(stderr, "  %p: name=%p value=%p\n", self, name, value));
-			return dict_new(name, value, self);
-		}
-	}
-	return undef_oop;
-}
-
-/*
-integer:
-	Integers are constants with a numeric representation 'n'.
-
-	boolean := o.eq?(x)		-- return true if 'o' is equal to 'x', otherwise false
-	integer := o.add(x)		-- return new integer equal to ('o' + 'x')
-*/
-
-struct integer {
-	struct object	o;
-	int				n;
-};
-
-#define	as_integer(oop)	((struct integer *)(oop))
-
-KIND(integer_kind);
-
-OOP
-integer_new(int value)
-{
-	struct integer * this = object_alloc(struct integer, integer_kind);
-	this->n = value;
-	return (OOP)this;
-}
-
-KIND(integer_kind)
-{
-	if (integer_kind == self->kind) {
-		struct integer * this = as_integer(self);
-		OOP cmd = take_arg();
-		if (cmd == eq_p_oop) {
-			OOP other = take_arg();
-			if (other == self) {  // compare identities
-				return _t_oop;
-			}
-			if (integer_kind == other->kind) {
-				struct integer * that = as_integer(other);
-				if (that->n == this->n) {  // compare values
-					return _t_oop;
-				}
-			}
-			return _f_oop;
-		} else if (cmd == add_oop) {
-			OOP other = take_arg();
-			if (integer_kind == other->kind) {
-				struct integer * that = as_integer(other);
-				return integer_new(this->n + that->n);
-			}
-		}
-	}
-	return undef_oop;
-}
-
-struct integer minus_1_integer = { { integer_kind }, -1 };
-#define	minus_1_oop	((OOP)&minus_1_integer)
-struct integer _0_integer = { { integer_kind }, 0 };
-#define	_0_oop	((OOP)&_0_integer)
-struct integer _1_integer = { { integer_kind }, 1 };
-#define	_1_oop	((OOP)&_1_integer)
-
-/*
 finger tree:
 	An efficient functional deque data-structure of arbitrary size.
 */
-#if 0 /* FINGER TREE */
 
 struct finger_tree {
 	struct object	o;
@@ -685,7 +667,171 @@ KIND(ft_many_kind)
 	}
 	return undef_oop;
 }
-#endif /* FINGER TREE */
+#endif /* _ENABLE_FINGER_TREE_ */
+
+/*
+behavior:
+	Behaviors cause "effects" for an actor, using a sponsor
+
+	o.(actor, sponsor, msg)	-- cause effects in 'sponsor' for 'actor' with 'msg'
+*/
+
+KIND(empty_beh_kind)
+{
+	TRACE(fprintf(stderr, "%p(empty_beh_kind)\n", self));
+	OOP actor = take_arg();
+	OOP sponsor = take_arg();
+	OOP msg = take_arg();
+	TRACE(fprintf(stderr, "  %p: actor=%p sponsor=%p msg=%p\n", self, actor, sponsor, msg));
+	return _t_oop;  // success?
+}
+
+struct object empty_beh = { empty_beh_kind };
+#define	empty_beh_oop	(&empty_beh)
+
+/*
+actor:
+	Actors encapsulate state/behavior reacting to asynchronous messages.
+	
+	o.(sponsor, msg)	-- deliver 'msg' to actor, using 'sponsor'
+*/
+
+struct actor {
+	struct object	o;
+	OOP				beh;
+};
+
+#define	as_actor(oop)	((struct actor *)(oop))
+
+KIND(actor_kind);
+
+OOP
+actor_new(OOP beh)
+{
+	struct actor * this = object_alloc(struct actor, actor_kind);
+	this->beh = beh;
+	return (OOP)this;
+}
+
+KIND(actor_kind)
+{
+	if (actor_kind == self->kind) {
+		struct actor * this = as_actor(self);
+		TRACE(fprintf(stderr, "%p(actor_kind, %p)\n", this, this->beh));
+		OOP sponsor = take_arg();
+		OOP msg = take_arg();
+		TRACE(fprintf(stderr, "  %p: sponsor=%p msg=%p\n", this, sponsor, msg));
+		return object_call(this->beh, self, sponsor, msg);
+	}
+	return _f_oop;  // failure?
+}
+
+struct actor sink_actor = { { actor_kind }, empty_beh_oop };
+#define	sink_actor_oop	((OOP)&sink_actor)
+
+/*
+event:
+	Events are unique occurances of a particular 'msg' for a specific 'actor'
+	
+	o.dispatch(sponsor)	-- deliver 'msg' to 'actor', using 'sponsor'
+*/
+
+struct event {
+	struct object	o;
+	OOP				actor;
+	OOP				msg;
+};
+
+#define	as_event(oop)	((struct event *)(oop))
+
+KIND(event_kind);
+
+OOP
+event_new(OOP actor, OOP msg)
+{
+	struct event * this = object_alloc(struct event, event_kind);
+	this->actor = actor;
+	this->msg = msg;
+	return (OOP)this;
+}
+
+KIND(event_kind)
+{
+	if (event_kind == self->kind) {
+		struct event * this = as_event(self);
+		TRACE(fprintf(stderr, "%p(event_kind, %p, %p)\n", this, this->actor, this->msg));
+		OOP cmd = take_arg();
+		TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", this, cmd, as_symbol(cmd)->s));
+		if (cmd == dispatch_oop) {
+			OOP sponsor = take_arg();
+			TRACE(fprintf(stderr, "  %p: sponsor=%p\n", this, sponsor));
+			return object_call(this->actor, sponsor, this->msg);
+		}
+	}
+	return _f_oop;  // failure?
+}
+
+/*
+sponsor:
+	Sponsors provide resources for actor computation.
+	
+	actor := o.create(beh)	-- return a new actor with initial behavior 'beh'
+	o.send(actor, message)	-- send 'message' to 'actor' asynchronously
+	o.become(beh)			-- use behavior 'beh' to process subsequent messages
+*/
+
+struct sponsor {
+	struct object	o;
+	OOP				event;  // active event
+	OOP				actors;  // actors created
+	OOP				events;  // messages sent
+	OOP				beh;  // replacement behavior
+};
+
+#define	as_sponsor(oop)	((struct sponsor *)(oop))
+
+KIND(sponsor_kind);
+
+OOP
+sponsor_new(OOP event)
+{
+	struct sponsor * this = object_alloc(struct sponsor, sponsor_kind);
+	this->event = event;
+	this->actors = nil_oop;
+	this->events = nil_oop;
+	this->beh = as_actor(as_event(event)->actor)->beh;
+	return (OOP)this;
+}
+
+KIND(sponsor_kind)
+{
+	if (sponsor_kind == self->kind) {
+		struct sponsor * this = as_sponsor(self);
+		TRACE(fprintf(stderr, "%p(sponsor_kind, %p(%p)<-%p)\n", this, as_event(this->event)->actor, this->beh, as_event(this->event)->msg));
+		OOP cmd = take_arg();
+		TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", this, cmd, as_symbol(cmd)->s));
+		if (cmd == create_oop) {
+			OOP beh = take_arg();
+			TRACE(fprintf(stderr, "  %p: create {beh:%p}\n", this, beh));
+			OOP actor = actor_new(beh);
+			this->actors = pair_new(actor, this->actors);  // add actor to stack
+			return actor;
+		} else if (cmd == send_oop) {
+			OOP actor = take_arg();
+			OOP msg = take_arg();
+			TRACE(fprintf(stderr, "  %p: send {actor:%p, msg:%p}\n", this, actor, msg));
+			OOP event = event_new(actor, msg);
+			this->events = pair_new(actor, this->events);  // add event to stack
+			return event;
+		} else if (cmd == become_oop) {
+			OOP beh = take_arg();
+			TRACE(fprintf(stderr, "  %p: become {beh:%p}\n", this, beh));
+			this->beh = beh;
+			return beh;
+		}
+	}
+	return undef_oop;
+}
 
 /*
 	Unit tests
@@ -704,10 +850,43 @@ run_tests()
 	TRACE(fprintf(stderr, "eq_p_symbol.o.kind = %p\n", (void*)eq_p_symbol.o.kind));
 	TRACE(fprintf(stderr, "eq_p_symbol.s = \"%s\"\n", eq_p_symbol.s));
 
+#ifdef _ENABLE_FINGER_TREE_
 	TRACE(fprintf(stderr, "finger_1_kind = %p\n", (void*)finger_1_kind));
 	TRACE(fprintf(stderr, "finger_2_kind = %p\n", (void*)finger_2_kind));
 	TRACE(fprintf(stderr, "finger_3_kind = %p\n", (void*)finger_3_kind));
 	TRACE(fprintf(stderr, "finger_4_kind = %p\n", (void*)finger_4_kind));
+/*
+	struct integer * a_integer_oop = integer_new('A');
+	struct integer * z_integer_oop = integer_new('Z');
+	OOP ft_deque_ptr = (OOP)&empty_ft;
+	TRACE(fprintf(stderr, "&empty_ft = %p\n", &empty_ft));
+	struct integer * n_integer_oop = a_integer_oop;
+	struct finger * eq_fp = finger_2_new(eq_p_oop, (OOP)z_integer_oop);
+	struct finger * inc_fp = finger_2_new(add_oop, _1_oop);
+	while (object_call((OOP)n_integer_oop, (OOP)eq_fp) != _t_oop) {
+		struct finger * fp = finger_2_new(put_oop, (OOP)n_integer_oop);
+		TRACE(fprintf(stderr, "fp = %p\n", fp));
+		TRACE(fprintf(stderr, "finger: %p [%p %p %p %p]\n", fp->o.kind, 
+			fp->item_1, fp->item_2, fp->item_3, fp->item_4));
+		TRACE(fprintf(stderr, "ft_deque_ptr = %p ^ [%c]\n", ft_deque_ptr, n_integer_oop->n));
+		ft_deque_ptr = object_call(ft_deque_ptr, (OOP)fp);
+		n_integer_oop = (struct integer *)object_call((OOP)n_integer_oop, (OOP)inc_fp);
+	}
+	n_integer_oop = a_integer_oop;
+	struct finger * dec_fp = finger_2_new(add_oop, minus_1_oop);
+	struct finger * pop_fp = finger_1_new(pop_oop);
+	while (object_call((OOP)n_integer_oop, (OOP)eq_fp) != _t_oop) {
+		struct pair * pp = (struct pair *)object_call(ft_deque_ptr, (OOP)pop_fp);
+		struct integer * ip = (struct integer *)pp->h;
+		ft_deque_ptr = pp->t;
+		TRACE(fprintf(stderr, "ft_deque_ptr = [%c] ^ %p\n", ip->n, ft_deque_ptr));
+		fp = finger_2_new(eq_p_oop, (OOP)n_integer_oop);
+		result = object_call((OOP)ip, (OOP)fp);
+		assert(_t_oop == result);
+		n_integer_oop = (struct integer *)object_call((OOP)n_integer_oop, (OOP)dec_fp);
+	}
+*/	
+#endif /* _ENABLE_FINGER_TREE_ */
 
 	TRACE(fprintf(stderr, "dict_kind = %p\n", (void*)dict_kind));
 	TRACE(fprintf(stderr, "lookup_oop = %p\n", lookup_oop));
@@ -742,38 +921,6 @@ run_tests()
 	TRACE(fprintf(stderr, "result = %p\n", result));
 	assert(undef_oop == result);
 
-/*
-	struct integer * a_integer_oop = integer_new('A');
-	struct integer * z_integer_oop = integer_new('Z');
-	OOP ft_deque_ptr = (OOP)&empty_ft;
-	TRACE(fprintf(stderr, "&empty_ft = %p\n", &empty_ft));
-	struct integer * n_integer_oop = a_integer_oop;
-	struct finger * eq_fp = finger_2_new(eq_p_oop, (OOP)z_integer_oop);
-	struct finger * inc_fp = finger_2_new(add_oop, _1_oop);
-	while (object_call((OOP)n_integer_oop, (OOP)eq_fp) != _t_oop) {
-		struct finger * fp = finger_2_new(put_oop, (OOP)n_integer_oop);
-		TRACE(fprintf(stderr, "fp = %p\n", fp));
-		TRACE(fprintf(stderr, "finger: %p [%p %p %p %p]\n", fp->o.kind, 
-			fp->item_1, fp->item_2, fp->item_3, fp->item_4));
-		TRACE(fprintf(stderr, "ft_deque_ptr = %p ^ [%c]\n", ft_deque_ptr, n_integer_oop->n));
-		ft_deque_ptr = object_call(ft_deque_ptr, (OOP)fp);
-		n_integer_oop = (struct integer *)object_call((OOP)n_integer_oop, (OOP)inc_fp);
-	}
-	n_integer_oop = a_integer_oop;
-	struct finger * dec_fp = finger_2_new(add_oop, minus_1_oop);
-	struct finger * pop_fp = finger_1_new(pop_oop);
-	while (object_call((OOP)n_integer_oop, (OOP)eq_fp) != _t_oop) {
-		struct pair * pp = (struct pair *)object_call(ft_deque_ptr, (OOP)pop_fp);
-		struct integer * ip = (struct integer *)pp->h;
-		ft_deque_ptr = pp->t;
-		TRACE(fprintf(stderr, "ft_deque_ptr = [%c] ^ %p\n", ip->n, ft_deque_ptr));
-		fp = finger_2_new(eq_p_oop, (OOP)n_integer_oop);
-		result = object_call((OOP)ip, (OOP)fp);
-		assert(_t_oop == result);
-		n_integer_oop = (struct integer *)object_call((OOP)n_integer_oop, (OOP)dec_fp);
-	}
-*/	
-
 	OOP a_integer_oop = integer_new('A');
 	OOP z_integer_oop = integer_new('Z');
 	OOP queue_oop = queue_new();
@@ -797,6 +944,17 @@ run_tests()
 		n_integer_oop = object_call(n_integer_oop, add_oop, _1_oop);
 	}
 	result = object_call(queue_oop, empty_p_oop);
+	assert(_t_oop == result);
+
+	TRACE(fprintf(stderr, "create_oop = %p\n", create_oop));
+	TRACE(fprintf(stderr, "send_oop = %p\n", send_oop));
+	TRACE(fprintf(stderr, "become_oop = %p\n", become_oop));
+	TRACE(fprintf(stderr, "dispatch_oop = %p\n", dispatch_oop));
+
+	OOP event_oop = event_new(sink_actor_oop, _42_oop);
+	OOP sponsor_oop = sponsor_new(event_oop);
+	result = object_call(event_oop, dispatch_oop, sponsor_oop);
+	TRACE(fprintf(stderr, "result = %p\n", result));
 	assert(_t_oop == result);
 }
 
