@@ -670,30 +670,11 @@ KIND(ft_many_kind)
 #endif /* _ENABLE_FINGER_TREE_ */
 
 /*
-behavior:
-	Behaviors cause "effects" for an actor, using a sponsor
-
-	o.(actor, sponsor, msg)	-- cause effects in 'sponsor' for 'actor' with 'msg'
-*/
-
-KIND(empty_beh_kind)
-{
-	TRACE(fprintf(stderr, "%p(empty_beh_kind)\n", self));
-	OOP actor = take_arg();
-	OOP sponsor = take_arg();
-	OOP msg = take_arg();
-	TRACE(fprintf(stderr, "  %p: actor=%p sponsor=%p msg=%p\n", self, actor, sponsor, msg));
-	return _t_oop;  // success?
-}
-
-struct object empty_beh = { empty_beh_kind };
-#define	empty_beh_oop	(&empty_beh)
-
-/*
 actor:
-	Actors encapsulate state/behavior reacting to asynchronous messages.
+	Actors encapsulate state/behavior reacting to asynchronous events (messages).
 	
-	o.(sponsor, msg)	-- deliver 'msg' to actor, using 'sponsor'
+	NOTE: Actor objects are not intended to be called directly, but if they are
+		they simply delegate to their behavior 'beh'
 */
 
 struct actor {
@@ -718,28 +699,32 @@ KIND(actor_kind)
 	if (actor_kind == self->kind) {
 		struct actor * this = as_actor(self);
 		TRACE(fprintf(stderr, "%p(actor_kind, %p)\n", this, this->beh));
-		OOP sponsor = take_arg();
-		OOP msg = take_arg();
-		TRACE(fprintf(stderr, "  %p: sponsor=%p msg=%p\n", this, sponsor, msg));
-		return object_call(this->beh, self, sponsor, msg);
+		OOP event = take_arg();
+		TRACE(fprintf(stderr, "  %p: event=%p\n", this, event));
+		return object_call(this->beh, event);
 	}
 	return _f_oop;  // failure?
 }
 
-struct actor sink_actor = { { actor_kind }, empty_beh_oop };
-#define	sink_actor_oop	((OOP)&sink_actor)
-
 /*
 event:
-	Events are unique occurances of a particular 'msg' for a specific 'actor'
+	Events are unique occurances of a particular 'msg' for a specific 'actor'.
+	When the message is delivered to the actor, the effects are held in the event.
+	The event acts as the "sponsor" for the computation, providing resources to the actor.
 	
-	o.dispatch(sponsor)	-- deliver 'msg' to 'actor', using 'sponsor'
+	actor := o.create(beh)	-- return a new actor with initial behavior 'beh'
+	o.send(actor, message)	-- send 'message' to 'actor' asynchronously
+	o.become(beh)			-- use behavior 'beh' to process subsequent messages
+	o.dispatch()			-- deliver 'msg' to 'actor'
 */
 
 struct event {
 	struct object	o;
-	OOP				actor;
-	OOP				msg;
+	OOP				actor;		// target actor
+	OOP				msg;		// message to deliver
+	OOP				actors;		// actors created
+	OOP				events;		// messages sent
+	OOP				beh;		// replacement behavior
 };
 
 #define	as_event(oop)	((struct event *)(oop))
@@ -759,58 +744,17 @@ KIND(event_kind)
 {
 	if (event_kind == self->kind) {
 		struct event * this = as_event(self);
-		TRACE(fprintf(stderr, "%p(event_kind, %p, %p)\n", this, this->actor, this->msg));
+		TRACE(fprintf(stderr, "%p event_kind {actor:%p, msg:%p}\n", this, this->actor, this->msg));
 		OOP cmd = take_arg();
 		TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", this, cmd, as_symbol(cmd)->s));
 		if (cmd == dispatch_oop) {
-			OOP sponsor = take_arg();
-			TRACE(fprintf(stderr, "  %p: sponsor=%p\n", this, sponsor));
-			return object_call(this->actor, sponsor, this->msg);
-		}
-	}
-	return _f_oop;  // failure?
-}
-
-/*
-sponsor:
-	Sponsors provide resources for actor computation.
-	
-	actor := o.create(beh)	-- return a new actor with initial behavior 'beh'
-	o.send(actor, message)	-- send 'message' to 'actor' asynchronously
-	o.become(beh)			-- use behavior 'beh' to process subsequent messages
-*/
-
-struct sponsor {
-	struct object	o;
-	OOP				event;  // active event
-	OOP				actors;  // actors created
-	OOP				events;  // messages sent
-	OOP				beh;  // replacement behavior
-};
-
-#define	as_sponsor(oop)	((struct sponsor *)(oop))
-
-KIND(sponsor_kind);
-
-OOP
-sponsor_new(OOP event)
-{
-	struct sponsor * this = object_alloc(struct sponsor, sponsor_kind);
-	this->event = event;
-	this->actors = nil_oop;
-	this->events = nil_oop;
-	this->beh = as_actor(as_event(event)->actor)->beh;
-	return (OOP)this;
-}
-
-KIND(sponsor_kind)
-{
-	if (sponsor_kind == self->kind) {
-		struct sponsor * this = as_sponsor(self);
-		TRACE(fprintf(stderr, "%p(sponsor_kind, %p(%p)<-%p)\n", this, as_event(this->event)->actor, this->beh, as_event(this->event)->msg));
-		OOP cmd = take_arg();
-		TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", this, cmd, as_symbol(cmd)->s));
-		if (cmd == create_oop) {
+			OOP beh = as_actor(this->actor)->beh;
+			TRACE(fprintf(stderr, "  %p: dispatch {beh:%p}\n", this, beh));
+			this->actors = nil_oop;
+			this->events = nil_oop;
+			this->beh = beh;
+			return object_call(beh, this);  // invoke actor behavior
+		} else if (cmd == create_oop) {
 			OOP beh = take_arg();
 			TRACE(fprintf(stderr, "  %p: create {beh:%p}\n", this, beh));
 			OOP actor = actor_new(beh);
@@ -830,7 +774,109 @@ KIND(sponsor_kind)
 			return beh;
 		}
 	}
-	return undef_oop;
+	return _f_oop;  // failure?
+}
+
+/*
+behavior:
+	Behaviors cause "effects" for an actor, using a sponsor
+
+	o.(event)	-- cause effects triggered by 'event'
+*/
+
+KIND(empty_beh_kind)
+{
+	TRACE(fprintf(stderr, "%p(empty_beh_kind)\n", self));
+	OOP event = take_arg();
+	OOP actor = as_event(event)->actor;
+	OOP msg = as_event(event)->msg;
+	TRACE(fprintf(stderr, "  %p: event=%p {actor:%p, msg:%p}\n", self, event, actor, msg));
+	return _t_oop;  // success?
+}
+
+struct object empty_beh = { empty_beh_kind };
+#define	empty_beh_oop	(&empty_beh)
+
+struct actor sink_actor = { { actor_kind }, empty_beh_oop };
+#define	sink_actor_oop	((OOP)&sink_actor)
+
+/*
+config:
+	Configurations are collections of actors and in-flight message-events.
+	
+	remain := o.dispatch(count)	-- dispatch up to 'count' events, return how many 'remain'
+	remain := o.give!(event)	-- add 'event' to the queue of in-flight events
+
+	actor := o.create(beh)	-- return a new actor with initial behavior 'beh'
+	o.send(actor, message)	-- send 'message' to 'actor' asynchronously
+	o.become(beh)			-- use behavior 'beh' to process subsequent messages
+*/
+
+struct config {
+	struct object	o;
+	OOP				events;		// queue of message-events to be delivered
+	OOP				remain;		// number of queued message-events
+};
+
+#define	as_config(oop)	((struct config *)(oop))
+
+KIND(config_kind);
+
+OOP
+config_new()
+{
+	struct config * this = object_alloc(struct config, config_kind);
+	this->events = queue_new();
+	this->remain = _0_oop;
+	return (OOP)this;
+}
+
+KIND(config_kind)
+{
+	if (config_kind == self->kind) {
+		struct config * this = as_config(self);
+		TRACE(fprintf(stderr, "%p config_kind {remain:%d}\n", this, as_integer(this->remain)->n));
+		OOP cmd = take_arg();
+		TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", this, cmd, as_symbol(cmd)->s));
+		if (cmd == give_x_oop) {
+			// enqueue an event
+			OOP event_oop = take_arg();
+			TRACE(fprintf(stderr, "  %p: give! {event_oop:%p}\n", this, event_oop));
+			object_call(this->events, give_x_oop, event_oop);
+			this->remain = object_call(this->remain, add_oop, _1_oop);
+			TRACE(fprintf(stderr, "  %p: remain=%d\n", this, as_integer(this->remain)->n));
+			return this->remain;
+		} else if (cmd == dispatch_oop) {
+			// dispatch up to 'count' events
+			OOP count = take_arg();
+			TRACE(fprintf(stderr, "  %p: dispatch {count:%d}\n", this, as_integer(count)->n));
+			while ((object_call(count, eq_p_oop, _0_oop) != _t_oop)
+			&&     (object_call(this->events, empty_p_oop) == _f_oop)) {
+				// dequeue next event
+				OOP event_oop = object_call(this->events, take_x_oop);
+				TRACE(fprintf(stderr, "  %p: event_oop=%p\n", this, event_oop));
+				// dispatch event
+				OOP result = object_call(event_oop, dispatch_oop);
+				TRACE(fprintf(stderr, "  %p: result=%p\n", this, result));
+				// apply result
+				assert(_t_oop == result);
+				struct event * ep = as_event(event_oop);
+				OOP events = ep->events;
+				while (nil_oop != events) {  // enqueue events
+					object_call(this->events, give_x_oop, as_pair(events)->h);
+					events = as_pair(events)->t;
+				}
+				as_actor(ep->actor)->beh = ep->beh;  // replace behavior
+				TRACE(fprintf(stderr, "  %p: beh=%p\n", this, ep->beh));
+				// update counters
+				this->remain = object_call(this->remain, add_oop, minus_1_oop);
+				TRACE(fprintf(stderr, "  %p: remain=%d\n", this, as_integer(this->remain)->n));
+				count = object_call(count, add_oop, minus_1_oop);
+				TRACE(fprintf(stderr, "  %p: count=%d\n", this, as_integer(count)->n));
+			}
+			return this->remain;
+		}
+	}
 }
 
 /*
@@ -951,11 +997,18 @@ run_tests()
 	TRACE(fprintf(stderr, "become_oop = %p\n", become_oop));
 	TRACE(fprintf(stderr, "dispatch_oop = %p\n", dispatch_oop));
 
-	OOP event_oop = event_new(sink_actor_oop, _42_oop);
-	OOP sponsor_oop = sponsor_new(event_oop);
-	result = object_call(event_oop, dispatch_oop, sponsor_oop);
+	OOP config_oop = config_new();
+	result = object_call(config_oop, dispatch_oop, _0_oop);
 	TRACE(fprintf(stderr, "result = %p\n", result));
-	assert(_t_oop == result);
+	assert(_t_oop == object_call(result, eq_p_oop, _0_oop));
+	OOP event_oop = event_new(sink_actor_oop, _42_oop);
+	TRACE(fprintf(stderr, "event_oop = %p\n", event_oop));
+	result = object_call(config_oop, give_x_oop, event_oop);
+	TRACE(fprintf(stderr, "result = %p\n", result));
+	assert(_t_oop == object_call(result, eq_p_oop, _1_oop));
+	result = object_call(config_oop, dispatch_oop, _1_oop);
+	TRACE(fprintf(stderr, "result = %p\n", result));
+	assert(_t_oop == object_call(result, eq_p_oop, _0_oop));
 }
 
 /*
