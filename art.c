@@ -76,13 +76,13 @@ object_new(DISP kind, size_t size)
 KIND(object_kind);
 
 struct object undef_object = { object_kind };
-#define	undef_oop	(&undef_object)
+#define	o_undef	(&undef_object)
 struct object nil_object = { object_kind };
-#define	nil_oop	(&nil_object)
+#define	o_nil	(&nil_object)
 
 KIND(object_kind)
 {
-	return undef_oop;
+	return o_undef;
 }
 
 /*
@@ -113,43 +113,44 @@ KIND(symbol_kind)
 		struct symbol * this = as_symbol(self);
 		/* no object protocol for symbol */
 	}
-	return undef_oop;
+	return o_undef;
 }
 
 struct symbol _t_symbol = { { symbol_kind }, "#t" };
-#define	_t_oop	((OOP)&_t_symbol)
+#define	o_true	((OOP)&_t_symbol)
 struct symbol _f_symbol = { { symbol_kind }, "#f" };
-#define	_f_oop	((OOP)&_f_symbol)
+#define	o_false	((OOP)&_f_symbol)
+
 struct symbol eq_p_symbol = { { symbol_kind }, "eq?" };
-#define	eq_p_oop	((OOP)&eq_p_symbol)
+#define	s_eq_p	((OOP)&eq_p_symbol)
 struct symbol give_x_symbol = { { symbol_kind }, "give!" };
-#define	give_x_oop	((OOP)&give_x_symbol)
+#define	s_give_x	((OOP)&give_x_symbol)
 struct symbol take_x_symbol = { { symbol_kind }, "take!" };
-#define	take_x_oop	((OOP)&take_x_symbol)
+#define	s_take_x	((OOP)&take_x_symbol)
 struct symbol empty_p_symbol = { { symbol_kind }, "empty?" };
-#define	empty_p_oop	((OOP)&empty_p_symbol)
+#define	s_empty_p	((OOP)&empty_p_symbol)
 struct symbol push_symbol = { { symbol_kind }, "push" };
-#define	push_oop	((OOP)&push_symbol)
+#define	s_push	((OOP)&push_symbol)
 struct symbol pop_symbol = { { symbol_kind }, "pop" };
-#define	pop_oop	((OOP)&pop_symbol)
+#define	s_pop	((OOP)&pop_symbol)
 struct symbol put_symbol = { { symbol_kind }, "put" };
-#define	put_oop	((OOP)&put_symbol)
+#define	s_put	((OOP)&put_symbol)
 struct symbol pull_symbol = { { symbol_kind }, "pull" };
-#define	pull_oop	((OOP)&pull_symbol)
+#define	s_pull	((OOP)&pull_symbol)
 struct symbol bind_symbol = { { symbol_kind }, "bind" };
-#define	bind_oop	((OOP)&bind_symbol)
+#define	s_bind	((OOP)&bind_symbol)
 struct symbol lookup_symbol = { { symbol_kind }, "lookup" };
-#define	lookup_oop	((OOP)&lookup_symbol)
+#define	s_lookup	((OOP)&lookup_symbol)
 struct symbol add_symbol = { { symbol_kind }, "add" };
-#define	add_oop	((OOP)&add_symbol)
-struct symbol create_symbol = { { symbol_kind }, "create" };
-#define	create_oop	((OOP)&create_symbol)
-struct symbol send_symbol = { { symbol_kind }, "send" };
-#define	send_oop	((OOP)&send_symbol)
-struct symbol become_symbol = { { symbol_kind }, "become" };
-#define	become_oop	((OOP)&become_symbol)
-struct symbol dispatch_symbol = { { symbol_kind }, "dispatch" };
-#define	dispatch_oop	((OOP)&dispatch_symbol)
+#define	s_add	((OOP)&add_symbol)
+struct symbol create_x_symbol = { { symbol_kind }, "create!" };
+#define	s_create_x	((OOP)&create_x_symbol)
+struct symbol send_x_symbol = { { symbol_kind }, "send!" };
+#define	s_send_x	((OOP)&send_x_symbol)
+struct symbol become_x_symbol = { { symbol_kind }, "become!" };
+#define	s_become_x	((OOP)&become_x_symbol)
+struct symbol dispatch_x_symbol = { { symbol_kind }, "dispatch!" };
+#define	s_dispatch_x	((OOP)&dispatch_x_symbol)
 
 /*
 pair:
@@ -181,7 +182,7 @@ KIND(pair_kind)
 		struct pair * this = as_pair(self);
 		/* no object protocol for pair */
 	}
-	return undef_oop;
+	return o_undef;
 }
 
 /*
@@ -198,22 +199,22 @@ KIND(queue_kind)
 	if (queue_kind == self->kind) {
 		struct pair * this = as_pair(self);
 		OOP cmd = take_arg();
-		if (cmd == empty_p_oop) {
-			if (this->h == nil_oop) {
-				return _t_oop;
+		if (cmd == s_empty_p) {
+			if (this->h == o_nil) {
+				return o_true;
 			}
-			return _f_oop;
-		} else if (cmd == take_x_oop) {
-			if (this->h != nil_oop) {
+			return o_false;
+		} else if (cmd == s_take_x) {
+			if (this->h != o_nil) {
 				struct pair * entry = as_pair(this->h);
 				this->h = entry->t;
 				OOP item = entry->h;  // entry is garbage after this (use custom free?)
 				return item;
 			}
-		} else if (cmd == give_x_oop) {
+		} else if (cmd == s_give_x) {
 			OOP item = take_arg();
-			OOP oop = pair_new(item, nil_oop);  // could be a custom allocator
-			if (this->h == nil_oop) {
+			OOP oop = pair_new(item, o_nil);  // could be a custom allocator
+			if (this->h == o_nil) {
 				this->h = oop;
 			} else {
 				as_pair(this->t)->t = oop;
@@ -222,14 +223,14 @@ KIND(queue_kind)
 			return self;
 		}
 	}
-	return undef_oop;
+	return o_undef;
 }
 
 OOP
 queue_new() {
 	struct pair * this = object_alloc(struct pair, queue_kind);
-	this->h = nil_oop;
-	this->t = nil_oop;
+	this->h = o_nil;
+	this->t = o_nil;
 	return (OOP)this;
 }
 
@@ -256,7 +257,7 @@ struct dict {
 KIND(dict_kind);
 KIND(empty_dict_kind);
 struct object empty_dict = { empty_dict_kind };
-#define	empty_dict_oop	(&empty_dict)
+#define	o_empty_dict	(&empty_dict)
 
 OOP
 dict_new(OOP name, OOP value, OOP next)
@@ -274,18 +275,18 @@ KIND(empty_dict_kind)
 		TRACE(fprintf(stderr, "%p(empty_dict_kind)\n", self));
 		OOP cmd = take_arg();
 		TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
-		if (cmd == lookup_oop) {
+		if (cmd == s_lookup) {
 			OOP name = take_arg();
 			TRACE(fprintf(stderr, "  %p: name=%p\n", self, name));
-			return undef_oop;
-		} else if (cmd == bind_oop) {
+			return o_undef;
+		} else if (cmd == s_bind) {
 			OOP name = take_arg();
 			OOP value = take_arg();
 			TRACE(fprintf(stderr, "  %p: name=%p value=%p\n", self, name, value));
 			return dict_new(name, value, self);
 		}
 	}
-	return undef_oop;
+	return o_undef;
 }
 
 KIND(dict_kind)
@@ -295,7 +296,7 @@ KIND(dict_kind)
 		TRACE(fprintf(stderr, "%p(dict_kind)\n", self));
 		OOP cmd = take_arg();
 		TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
-		if (cmd == lookup_oop) {
+		if (cmd == s_lookup) {
 			OOP name = take_arg();
 			TRACE(fprintf(stderr, "  %p: name=%p\n", self, name));
 			do {
@@ -306,15 +307,15 @@ KIND(dict_kind)
 				}
 				self = this->next;  // iterate to simulate tail-recursion
 			} while (dict_kind == self->kind);
-			return object_call(self, lookup_oop, name);  // delegate call
-		} else if (cmd == bind_oop) {
+			return object_call(self, s_lookup, name);  // delegate call
+		} else if (cmd == s_bind) {
 			OOP name = take_arg();
 			OOP value = take_arg();
 			TRACE(fprintf(stderr, "  %p: name=%p value=%p\n", self, name, value));
 			return dict_new(name, value, self);
 		}
 	}
-	return undef_oop;
+	return o_undef;
 }
 
 /*
@@ -347,19 +348,19 @@ KIND(integer_kind)
 	if (integer_kind == self->kind) {
 		struct integer * this = as_integer(self);
 		OOP cmd = take_arg();
-		if (cmd == eq_p_oop) {
+		if (cmd == s_eq_p) {
 			OOP other = take_arg();
 			if (other == self) {  // compare identities
-				return _t_oop;
+				return o_true;
 			}
 			if (integer_kind == other->kind) {
 				struct integer * that = as_integer(other);
 				if (that->n == this->n) {  // compare values
-					return _t_oop;
+					return o_true;
 				}
 			}
-			return _f_oop;
-		} else if (cmd == add_oop) {
+			return o_false;
+		} else if (cmd == s_add) {
 			OOP other = take_arg();
 			if (integer_kind == other->kind) {
 				struct integer * that = as_integer(other);
@@ -367,15 +368,17 @@ KIND(integer_kind)
 			}
 		}
 	}
-	return undef_oop;
+	return o_undef;
 }
 
 struct integer minus_1_integer = { { integer_kind }, -1 };
-#define	minus_1_oop	((OOP)&minus_1_integer)
+#define	n_minus_1	((OOP)&minus_1_integer)
 struct integer _0_integer = { { integer_kind }, 0 };
-#define	_0_oop	((OOP)&_0_integer)
+#define	n_0	((OOP)&_0_integer)
 struct integer _1_integer = { { integer_kind }, 1 };
-#define	_1_oop	((OOP)&_1_integer)
+#define	n_1	((OOP)&_1_integer)
+struct integer _2_integer = { { integer_kind }, 2 };
+#define	n_2	((OOP)&_2_integer)
 
 #ifdef _ENABLE_FINGER_TREE_
 /*
@@ -394,131 +397,131 @@ finger:
 
 struct finger {
 	struct object	o;
-	OOP				item_1;
-	OOP				item_2;
-	OOP				item_3;
-	OOP				item_4;
+	OOP				item1;
+	OOP				item2;
+	OOP				item3;
+	OOP				item4;
 };
 
 #define	as_finger(oop)	((struct finger *)(oop))
 
-KIND(finger_1_kind);
-KIND(finger_2_kind);
-KIND(finger_3_kind);
-KIND(finger_4_kind);
+KIND(finger1_kind);
+KIND(finger2_kind);
+KIND(finger3_kind);
+KIND(finger4_kind);
 
 OOP
-finger_1_new(OOP item_1) {
-	struct finger * this = object_alloc(struct finger, finger_1_kind);
-	this->item_1 = item_1;
+finger1_new(OOP item1) {
+	struct finger * this = object_alloc(struct finger, finger1_kind);
+	this->item1 = item1;
 	return (OOP)this;
 }
 
 OOP
-finger_2_new(OOP item_1, OOP item_2) {
-	struct finger * this = object_alloc(struct finger, finger_2_kind);
-	this->item_1 = item_1;
-	this->item_2 = item_2;
+finger2_new(OOP item1, OOP item2) {
+	struct finger * this = object_alloc(struct finger, finger2_kind);
+	this->item1 = item1;
+	this->item2 = item2;
 	return (OOP)this;
 }
 
 OOP
-finger_3_new(OOP item_1, OOP item_2, OOP item_3) {
-	struct finger * this = object_alloc(struct finger, finger_3_kind);
-	this->item_1 = item_1;
-	this->item_2 = item_2;
-	this->item_3 = item_3;
+finger3_new(OOP item1, OOP item2, OOP item3) {
+	struct finger * this = object_alloc(struct finger, finger3_kind);
+	this->item1 = item1;
+	this->item2 = item2;
+	this->item3 = item3;
 	return (OOP)this;
 }
 
 OOP
-finger_4_new(OOP item_1, OOP item_2, OOP item_3, OOP item_4) {
-	struct finger * this = object_alloc(struct finger, finger_4_kind);
-	this->item_1 = item_1;
-	this->item_2 = item_2;
-	this->item_3 = item_3;
-	this->item_4 = item_4;
+finger4_new(OOP item1, OOP item2, OOP item3, OOP item4) {
+	struct finger * this = object_alloc(struct finger, finger4_kind);
+	this->item1 = item1;
+	this->item2 = item2;
+	this->item3 = item3;
+	this->item4 = item4;
 	return (OOP)this;
 }
 
-KIND(finger_1_kind)
+KIND(finger1_kind)
 {
-	if (finger_1_kind == self->kind) {
+	if (finger1_kind == self->kind) {
 		struct finger * this = as_finger(self);
-		OOP a = this->item_1;
+		OOP a = this->item1;
 		OOP cmd = take_arg();
-		if (cmd == put_oop) {
+		if (cmd == s_put) {
 			OOP x = take_arg();
-			return finger_2_new(a, x);
-		} else if (cmd == push_oop) {
+			return finger2_new(a, x);
+		} else if (cmd == s_push) {
 			OOP x = take_arg();
-			return finger_2_new(x, a);
+			return finger2_new(x, a);
 		}
 	}
-	return undef_oop;
+	return o_undef;
 }
 
-KIND(finger_2_kind)
+KIND(finger2_kind)
 {
-	if (finger_2_kind == self->kind) {
+	if (finger2_kind == self->kind) {
 		struct finger * this = as_finger(self);
-		OOP a = this->item_1;
-		OOP b = this->item_2;
+		OOP a = this->item1;
+		OOP b = this->item2;
 		OOP cmd = take_arg();
-		if (cmd == pop_oop) {
-			return pair_new(a, finger_1_new(b));
-		} else if (cmd == pull_oop) {
-			return pair_new(b, finger_1_new(a));
-		} else if (cmd == put_oop) {
+		if (cmd == s_pop) {
+			return pair_new(a, finger1_new(b));
+		} else if (cmd == s_pull) {
+			return pair_new(b, finger1_new(a));
+		} else if (cmd == s_put) {
 			OOP x = take_arg();
-			return finger_3_new(a, b, x);
-		} else if (cmd == push_oop) {
+			return finger3_new(a, b, x);
+		} else if (cmd == s_push) {
 			OOP x = take_arg();
-			return finger_3_new(x, a, b);
+			return finger3_new(x, a, b);
 		}
 	}
-	return undef_oop;
+	return o_undef;
 }
 
-KIND(finger_3_kind)
+KIND(finger3_kind)
 {
-	if (finger_3_kind == self->kind) {
+	if (finger3_kind == self->kind) {
 		struct finger * this = as_finger(self);
-		OOP a = this->item_1;
-		OOP b = this->item_2;
-		OOP c = this->item_3;
+		OOP a = this->item1;
+		OOP b = this->item2;
+		OOP c = this->item3;
 		OOP cmd = take_arg();
-		if (cmd == pop_oop) {
-			return pair_new(a, finger_2_new(b, c));
-		} else if (cmd == pull_oop) {
-			return pair_new(c, finger_2_new(a, b));
-		} else if (cmd == put_oop) {
+		if (cmd == s_pop) {
+			return pair_new(a, finger2_new(b, c));
+		} else if (cmd == s_pull) {
+			return pair_new(c, finger2_new(a, b));
+		} else if (cmd == s_put) {
 			OOP x = take_arg();
-			return finger_4_new(a, b, c, x);
-		} else if (cmd == push_oop) {
+			return finger4_new(a, b, c, x);
+		} else if (cmd == s_push) {
 			OOP x = take_arg();
-			return finger_4_new(x, a, b, c);
+			return finger4_new(x, a, b, c);
 		}
 	}
-	return undef_oop;
+	return o_undef;
 }
 
-KIND(finger_4_kind)
+KIND(finger4_kind)
 {
-	if (finger_4_kind == self->kind) {
+	if (finger4_kind == self->kind) {
 		struct finger * this = as_finger(self);
-		OOP a = this->item_1;
-		OOP b = this->item_2;
-		OOP c = this->item_3;
-		OOP d = this->item_4;
+		OOP a = this->item1;
+		OOP b = this->item2;
+		OOP c = this->item3;
+		OOP d = this->item4;
 		OOP cmd = take_arg();
-		if (cmd == pop_oop) {
-			return pair_new(a, finger_3_new(b, c, d));
-		} else if (cmd == pull_oop) {
-			return pair_new(d, finger_3_new(a, b, c));
+		if (cmd == s_pop) {
+			return pair_new(a, finger3_new(b, c, d));
+		} else if (cmd == s_pull) {
+			return pair_new(d, finger3_new(a, b, c));
 		}
 	}
-	return undef_oop;
+	return o_undef;
 }
 
 /*
@@ -560,17 +563,17 @@ KIND(ft_zero_kind)
 	OOP args = take_arg();
 	if (ft_zero_kind == self->kind) {
 		struct finger_tree * this = (struct finger_tree *)self;
-		if (finger_2_kind == args->kind) {
+		if (finger2_kind == args->kind) {
 			struct finger * mfp = (struct finger *)args;
-			if (mfp->item_1 == put_oop) {
-				return (OOP)ft_one_new(mfp->item_2);
+			if (mfp->item1 == s_put) {
+				return (OOP)ft_one_new(mfp->item2);
 			}
-			if (mfp->item_1 == push_oop) {
-				return (OOP)ft_one_new(mfp->item_2);
+			if (mfp->item1 == s_push) {
+				return (OOP)ft_one_new(mfp->item2);
 			}
 		}
 	}
-	return undef_oop;
+	return o_undef;
 }
 
 KIND(ft_one_kind)
@@ -578,32 +581,32 @@ KIND(ft_one_kind)
 	OOP args = take_arg();
 	if (ft_one_kind == self->kind) {
 		struct finger_tree * this = (struct finger_tree *)self;
-		if (finger_1_kind == args->kind) {
+		if (finger1_kind == args->kind) {
 			struct finger * mfp = (struct finger *)args;
-			if (mfp->item_1 == pop_oop) {
+			if (mfp->item1 == s_pop) {
 				return pair_new(this->mid, (OOP)&empty_ft);
 			}
-			if (mfp->item_1 == pull_oop) {
+			if (mfp->item1 == s_pull) {
 				return pair_new(this->mid, (OOP)&empty_ft);
 			}
 		}
-		if (finger_2_kind == args->kind) {
+		if (finger2_kind == args->kind) {
 			struct finger * mfp = (struct finger *)args;
-			if (mfp->item_1 == put_oop) {
+			if (mfp->item1 == s_put) {
 				return (OOP)ft_many_new(
 						(OOP)ft_one_new(this->mid), 
 						(OOP)&empty_ft, 
-						(OOP)ft_one_new(mfp->item_2));
+						(OOP)ft_one_new(mfp->item2));
 			}
-			if (mfp->item_1 == push_oop) {
+			if (mfp->item1 == s_push) {
 				return (OOP)ft_many_new(
-						(OOP)ft_one_new(mfp->item_2), 
+						(OOP)ft_one_new(mfp->item2), 
 						(OOP)&empty_ft, 
 						(OOP)ft_one_new(this->mid));
 			}
 		}
 	}
-	return undef_oop;
+	return o_undef;
 }
 
 KIND(ft_many_kind)
@@ -611,28 +614,28 @@ KIND(ft_many_kind)
 	OOP args = take_arg();
 	if (ft_many_kind == self->kind) {
 		struct finger_tree * this = (struct finger_tree *)self;
-		if (finger_1_kind == args->kind) {
+		if (finger1_kind == args->kind) {
 			struct finger * mfp = (struct finger *)args;
-			if (mfp->item_1 == pop_oop) {
-				if (finger_1_kind == this->left->kind) {
+			if (mfp->item1 == s_pop) {
+				if (finger1_kind == this->left->kind) {
 					struct finger * fp = (struct finger *)this->left;
 					if (this->mid == (OOP)&empty_ft) {
-						if (finger_1_kind == this->right->kind) {
+						if (finger1_kind == this->right->kind) {
 							struct finger * rfp = (struct finger *)this->right;
 							return pair_new(
-									fp->item_1,
-									(OOP)ft_one_new(rfp->item_1));
+									fp->item1,
+									(OOP)ft_one_new(rfp->item1));
 						} else {
 							struct pair * pp = (struct pair *)object_call_1(this->right, args);  // delegate to right
-							OOP left = (OOP)finger_1_new(pp->h);
+							OOP left = (OOP)finger1_new(pp->h);
 							return pair_new(
-									fp->item_1,
+									fp->item1,
 									(OOP)ft_many_new(left, this->mid, pp->t));
 						}
 					} else {
 						struct pair * pp = (struct pair *)object_call_1(this->mid, args);  // delegate to mid
 						return pair_new(
-								fp->item_1,
+								fp->item1,
 								(OOP)ft_many_new(pp->h, pp->t, this->right));
 					}
 				} else {
@@ -642,30 +645,30 @@ KIND(ft_many_kind)
 							(OOP)ft_many_new(pp->t, this->mid, this->right));
 				}
 			}
-			if (mfp->item_1 == pull_oop) {
-				return undef_oop; // [NOT IMPLEMENTED]
+			if (mfp->item1 == s_pull) {
+				return o_undef; // [NOT IMPLEMENTED]
 			}
 		}
-		if (finger_2_kind == args->kind) {
+		if (finger2_kind == args->kind) {
 			struct finger * mfp = (struct finger *)args;
-			if (mfp->item_1 == put_oop) {
-				if (finger_4_kind == this->right->kind) {
+			if (mfp->item1 == s_put) {
+				if (finger4_kind == this->right->kind) {
 					struct finger * fp = (struct finger *)this->right;
 					OOP mid = object_call_2(this->mid,
-							put_oop, (OOP)finger_3_new(fp->item_1, fp->item_2, fp->item_3));
-					OOP right = (OOP)finger_2_new(fp->item_4, mfp->item_2);
+							s_put, (OOP)finger3_new(fp->item1, fp->item2, fp->item3));
+					OOP right = (OOP)finger2_new(fp->item4, mfp->item2);
 					return (OOP)ft_many_new(this->left, mid, right);
 				} else {
 					OOP right = object_call(this->right, args);  // delegate to right
 					return (OOP)ft_many_new(this->left, this->mid, right);
 				}
 			}
-			if (mfp->item_1 == push_oop) {
-				return undef_oop; // [NOT IMPLEMENTED]
+			if (mfp->item1 == s_push) {
+				return o_undef; // [NOT IMPLEMENTED]
 			}
 		}
 	}
-	return undef_oop;
+	return o_undef;
 }
 #endif /* _ENABLE_FINGER_TREE_ */
 
@@ -703,7 +706,7 @@ KIND(actor_kind)
 		TRACE(fprintf(stderr, "  %p: event=%p\n", this, event));
 		return object_call(this->beh, event);
 	}
-	return _f_oop;  // failure?
+	return o_false;  // failure?
 }
 
 /*
@@ -712,10 +715,10 @@ event:
 	When the message is delivered to the actor, the effects are held in the event.
 	The event acts as the "sponsor" for the computation, providing resources to the actor.
 	
-	actor := o.create(beh)	-- return a new actor with initial behavior 'beh'
-	o.send(actor, message)	-- send 'message' to 'actor' asynchronously
-	o.become(beh)			-- use behavior 'beh' to process subsequent messages
-	o.dispatch()			-- deliver 'msg' to 'actor'
+	actor := o.create!(beh)	-- return a new actor with initial behavior 'beh'
+	o.send!(actor, message)	-- send 'message' to 'actor' asynchronously
+	o.become!(beh)			-- use behavior 'beh' to process subsequent messages
+	o.dispatch!()			-- deliver 'msg' to 'actor'
 */
 
 struct event {
@@ -747,34 +750,34 @@ KIND(event_kind)
 		TRACE(fprintf(stderr, "%p event_kind {actor:%p, msg:%p}\n", this, this->actor, this->msg));
 		OOP cmd = take_arg();
 		TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", this, cmd, as_symbol(cmd)->s));
-		if (cmd == dispatch_oop) {
+		if (cmd == s_dispatch_x) {
 			OOP beh = as_actor(this->actor)->beh;
 			TRACE(fprintf(stderr, "  %p: dispatch {beh:%p}\n", this, beh));
-			this->actors = nil_oop;
-			this->events = nil_oop;
+			this->actors = o_nil;
+			this->events = o_nil;
 			this->beh = beh;
 			return object_call(beh, this);  // invoke actor behavior
-		} else if (cmd == create_oop) {
+		} else if (cmd == s_create_x) {
 			OOP beh = take_arg();
 			TRACE(fprintf(stderr, "  %p: create {beh:%p}\n", this, beh));
 			OOP actor = actor_new(beh);
 			this->actors = pair_new(actor, this->actors);  // add actor to stack
 			return actor;
-		} else if (cmd == send_oop) {
+		} else if (cmd == s_send_x) {
 			OOP actor = take_arg();
 			OOP msg = take_arg();
 			TRACE(fprintf(stderr, "  %p: send {actor:%p, msg:%p}\n", this, actor, msg));
 			OOP event = event_new(actor, msg);
-			this->events = pair_new(actor, this->events);  // add event to stack
+			this->events = pair_new(event, this->events);  // add event to stack
 			return event;
-		} else if (cmd == become_oop) {
+		} else if (cmd == s_become_x) {
 			OOP beh = take_arg();
 			TRACE(fprintf(stderr, "  %p: become {beh:%p}\n", this, beh));
 			this->beh = beh;
 			return beh;
 		}
 	}
-	return _f_oop;  // failure?
+	return o_false;  // failure?
 }
 
 /*
@@ -787,29 +790,85 @@ behavior:
 KIND(empty_beh_kind)
 {
 	TRACE(fprintf(stderr, "%p(empty_beh_kind)\n", self));
-	OOP event = take_arg();
-	OOP actor = as_event(event)->actor;
-	OOP msg = as_event(event)->msg;
-	TRACE(fprintf(stderr, "  %p: event=%p {actor:%p, msg:%p}\n", self, event, actor, msg));
-	return _t_oop;  // success?
+	OOP evt = take_arg();
+	OOP act = as_event(evt)->actor;
+	OOP msg = as_event(evt)->msg;
+	TRACE(fprintf(stderr, "  %p: event=%p {actor:%p, msg:%p}\n", self, evt, act, msg));
+	return o_true;  // success?
 }
 
 struct object empty_beh = { empty_beh_kind };
-#define	empty_beh_oop	(&empty_beh)
+#define	beh_empty	(&empty_beh)
 
-struct actor sink_actor = { { actor_kind }, empty_beh_oop };
-#define	sink_actor_oop	((OOP)&sink_actor)
+struct actor sink_actor = { { actor_kind }, beh_empty };
+#define	a_sink	((OOP)&sink_actor)
+
+struct forward_beh {
+	struct object	o;
+	OOP				target;		// messages are forwarded to 'target' actor
+};
+
+#define	as_forward_beh(oop)	((struct forward_beh *)(oop))
+
+KIND(forward_beh_kind);
+
+OOP
+forward_beh_new(OOP target)
+{
+	struct forward_beh * this = object_alloc(struct forward_beh, forward_beh_kind);
+	this->target = target;
+	return (OOP)this;
+}
+
+KIND(forward_beh_kind)
+{
+	if (forward_beh_kind == self->kind) {
+		struct forward_beh * this = as_forward_beh(self);
+		TRACE(fprintf(stderr, "%p forward_beh_kind {target:%p}\n", this, this->target));
+
+		OOP evt = take_arg();
+		OOP act = as_event(evt)->actor;
+		OOP msg = as_event(evt)->msg;
+		TRACE(fprintf(stderr, "  %p: event=%p {actor:%p, msg:%p}\n", self, evt, act, msg));
+		object_call(evt, s_send_x, this->target, msg);
+		return o_true;  // success?
+	}
+	return o_false;  // failure?
+}
+
+KIND(one_shot_beh_kind);
+
+OOP
+one_shot_beh_new(OOP target)
+{
+	struct forward_beh * this = object_alloc(struct forward_beh, one_shot_beh_kind);
+	this->target = target;
+	return (OOP)this;
+}
+
+KIND(one_shot_beh_kind)
+{
+	if (one_shot_beh_kind == self->kind) {
+		struct forward_beh * this = as_forward_beh(self);
+		TRACE(fprintf(stderr, "%p one_shot_beh_kind {target:%p}\n", this, this->target));
+
+		OOP evt = take_arg();
+		OOP act = as_event(evt)->actor;
+		OOP msg = as_event(evt)->msg;
+		TRACE(fprintf(stderr, "  %p: event=%p {actor:%p, msg:%p}\n", self, evt, act, msg));
+		object_call(evt, s_send_x, this->target, msg);
+		object_call(evt, s_become_x, beh_empty);  // BECOME sink_beh
+		return o_true;  // success?
+	}
+	return o_false;  // failure?
+}
 
 /*
 config:
 	Configurations are collections of actors and in-flight message-events.
 	
-	remain := o.dispatch(count)	-- dispatch up to 'count' events, return how many 'remain'
+	remain := o.dispatch!(count)-- dispatch up to 'count' events, return how many 'remain'
 	remain := o.give!(event)	-- add 'event' to the queue of in-flight events
-
-	actor := o.create(beh)	-- return a new actor with initial behavior 'beh'
-	o.send(actor, message)	-- send 'message' to 'actor' asynchronously
-	o.become(beh)			-- use behavior 'beh' to process subsequent messages
 */
 
 struct config {
@@ -827,7 +886,7 @@ config_new()
 {
 	struct config * this = object_alloc(struct config, config_kind);
 	this->events = queue_new();
-	this->remain = _0_oop;
+	this->remain = n_0;
 	return (OOP)this;
 }
 
@@ -838,40 +897,41 @@ KIND(config_kind)
 		TRACE(fprintf(stderr, "%p config_kind {remain:%d}\n", this, as_integer(this->remain)->n));
 		OOP cmd = take_arg();
 		TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", this, cmd, as_symbol(cmd)->s));
-		if (cmd == give_x_oop) {
+		if (cmd == s_give_x) {
 			// enqueue an event
-			OOP event_oop = take_arg();
-			TRACE(fprintf(stderr, "  %p: give! {event_oop:%p}\n", this, event_oop));
-			object_call(this->events, give_x_oop, event_oop);
-			this->remain = object_call(this->remain, add_oop, _1_oop);
+			OOP evt = take_arg();
+			TRACE(fprintf(stderr, "  %p: give! {event:%p}\n", this, evt));
+			object_call(this->events, s_give_x, evt);
+			this->remain = object_call(this->remain, s_add, n_1);
 			TRACE(fprintf(stderr, "  %p: remain=%d\n", this, as_integer(this->remain)->n));
 			return this->remain;
-		} else if (cmd == dispatch_oop) {
+		} else if (cmd == s_dispatch_x) {
 			// dispatch up to 'count' events
 			OOP count = take_arg();
 			TRACE(fprintf(stderr, "  %p: dispatch {count:%d}\n", this, as_integer(count)->n));
-			while ((object_call(count, eq_p_oop, _0_oop) != _t_oop)
-			&&     (object_call(this->events, empty_p_oop) == _f_oop)) {
+			while ((object_call(count, s_eq_p, n_0) != o_true)
+			&&     (object_call(this->events, s_empty_p) == o_false)) {
 				// dequeue next event
-				OOP event_oop = object_call(this->events, take_x_oop);
-				TRACE(fprintf(stderr, "  %p: event_oop=%p\n", this, event_oop));
+				OOP evt = object_call(this->events, s_take_x);
+				TRACE(fprintf(stderr, "  %p: event=%p\n", this, evt));
+				this->remain = object_call(this->remain, s_add, n_minus_1);
+				TRACE(fprintf(stderr, "  %p: remain=%d\n", this, as_integer(this->remain)->n));
 				// dispatch event
-				OOP result = object_call(event_oop, dispatch_oop);
+				OOP result = object_call(evt, s_dispatch_x);
 				TRACE(fprintf(stderr, "  %p: result=%p\n", this, result));
 				// apply result
-				assert(_t_oop == result);
-				struct event * ep = as_event(event_oop);
+				assert(o_true == result);
+				struct event * ep = as_event(evt);
 				OOP events = ep->events;
-				while (nil_oop != events) {  // enqueue events
-					object_call(this->events, give_x_oop, as_pair(events)->h);
+				while (o_nil != events) {  // enqueue events
+					TRACE(fprintf(stderr, "  %p: events=%p\n", this, events));
+					object_call(self, s_give_x, as_pair(events)->h);
 					events = as_pair(events)->t;
 				}
 				as_actor(ep->actor)->beh = ep->beh;  // replace behavior
 				TRACE(fprintf(stderr, "  %p: beh=%p\n", this, ep->beh));
-				// update counters
-				this->remain = object_call(this->remain, add_oop, minus_1_oop);
-				TRACE(fprintf(stderr, "  %p: remain=%d\n", this, as_integer(this->remain)->n));
-				count = object_call(count, add_oop, minus_1_oop);
+				// decrement count
+				count = object_call(count, s_add, n_minus_1);
 				TRACE(fprintf(stderr, "  %p: count=%d\n", this, as_integer(count)->n));
 			}
 			return this->remain;
@@ -885,130 +945,142 @@ KIND(config_kind)
 void
 run_tests()
 {
-	TRACE(fprintf(stderr, "undef_oop = %p\n", undef_oop));
-	TRACE(fprintf(stderr, "nil_oop = %p\n", nil_oop));
+	TRACE(fprintf(stderr, "o_undef = %p\n", o_undef));
+	TRACE(fprintf(stderr, "o_nil = %p\n", o_nil));
 
-	TRACE(fprintf(stderr, "_t_oop = %p\n", _t_oop));
-	TRACE(fprintf(stderr, "_f_oop = %p\n", _f_oop));
-	TRACE(fprintf(stderr, "eq_p_oop = %p\n", eq_p_oop));
+	TRACE(fprintf(stderr, "o_true = %p\n", o_true));
+	TRACE(fprintf(stderr, "o_false = %p\n", o_false));
+	TRACE(fprintf(stderr, "s_eq_p = %p\n", s_eq_p));
 	TRACE(fprintf(stderr, "&eq_p_symbol = %p\n", &eq_p_symbol));
 	TRACE(fprintf(stderr, "symbol_kind = %p\n", (void*)symbol_kind));
 	TRACE(fprintf(stderr, "eq_p_symbol.o.kind = %p\n", (void*)eq_p_symbol.o.kind));
 	TRACE(fprintf(stderr, "eq_p_symbol.s = \"%s\"\n", eq_p_symbol.s));
 
 #ifdef _ENABLE_FINGER_TREE_
-	TRACE(fprintf(stderr, "finger_1_kind = %p\n", (void*)finger_1_kind));
-	TRACE(fprintf(stderr, "finger_2_kind = %p\n", (void*)finger_2_kind));
-	TRACE(fprintf(stderr, "finger_3_kind = %p\n", (void*)finger_3_kind));
-	TRACE(fprintf(stderr, "finger_4_kind = %p\n", (void*)finger_4_kind));
+	TRACE(fprintf(stderr, "finger1_kind = %p\n", (void*)finger1_kind));
+	TRACE(fprintf(stderr, "finger2_kind = %p\n", (void*)finger2_kind));
+	TRACE(fprintf(stderr, "finger3_kind = %p\n", (void*)finger3_kind));
+	TRACE(fprintf(stderr, "finger4_kind = %p\n", (void*)finger4_kind));
 /*
-	struct integer * a_integer_oop = integer_new('A');
-	struct integer * z_integer_oop = integer_new('Z');
+	struct integer * ch_A = integer_new('A');
+	struct integer * ch_Z = integer_new('Z');
 	OOP ft_deque_ptr = (OOP)&empty_ft;
 	TRACE(fprintf(stderr, "&empty_ft = %p\n", &empty_ft));
-	struct integer * n_integer_oop = a_integer_oop;
-	struct finger * eq_fp = finger_2_new(eq_p_oop, (OOP)z_integer_oop);
-	struct finger * inc_fp = finger_2_new(add_oop, _1_oop);
-	while (object_call((OOP)n_integer_oop, (OOP)eq_fp) != _t_oop) {
-		struct finger * fp = finger_2_new(put_oop, (OOP)n_integer_oop);
+	struct integer * n_ch = ch_A;
+	struct finger * eq_fp = finger2_new(s_eq_p, (OOP)ch_Z);
+	struct finger * inc_fp = finger2_new(s_add, n_1);
+	while (object_call((OOP)n_ch, (OOP)eq_fp) != o_true) {
+		struct finger * fp = finger2_new(s_put, (OOP)n_ch);
 		TRACE(fprintf(stderr, "fp = %p\n", fp));
 		TRACE(fprintf(stderr, "finger: %p [%p %p %p %p]\n", fp->o.kind, 
-			fp->item_1, fp->item_2, fp->item_3, fp->item_4));
-		TRACE(fprintf(stderr, "ft_deque_ptr = %p ^ [%c]\n", ft_deque_ptr, n_integer_oop->n));
+			fp->item1, fp->item2, fp->item3, fp->item4));
+		TRACE(fprintf(stderr, "ft_deque_ptr = %p ^ [%c]\n", ft_deque_ptr, n_ch->n));
 		ft_deque_ptr = object_call(ft_deque_ptr, (OOP)fp);
-		n_integer_oop = (struct integer *)object_call((OOP)n_integer_oop, (OOP)inc_fp);
+		n_ch = (struct integer *)object_call((OOP)n_ch, (OOP)inc_fp);
 	}
-	n_integer_oop = a_integer_oop;
-	struct finger * dec_fp = finger_2_new(add_oop, minus_1_oop);
-	struct finger * pop_fp = finger_1_new(pop_oop);
-	while (object_call((OOP)n_integer_oop, (OOP)eq_fp) != _t_oop) {
+	n_ch = ch_A;
+	struct finger * dec_fp = finger2_new(s_add, n_minus_1);
+	struct finger * pop_fp = finger1_new(s_pop);
+	while (object_call((OOP)n_ch, (OOP)eq_fp) != o_true) {
 		struct pair * pp = (struct pair *)object_call(ft_deque_ptr, (OOP)pop_fp);
 		struct integer * ip = (struct integer *)pp->h;
 		ft_deque_ptr = pp->t;
 		TRACE(fprintf(stderr, "ft_deque_ptr = [%c] ^ %p\n", ip->n, ft_deque_ptr));
-		fp = finger_2_new(eq_p_oop, (OOP)n_integer_oop);
+		fp = finger2_new(s_eq_p, (OOP)n_ch);
 		result = object_call((OOP)ip, (OOP)fp);
-		assert(_t_oop == result);
-		n_integer_oop = (struct integer *)object_call((OOP)n_integer_oop, (OOP)dec_fp);
+		assert(o_true == result);
+		n_ch = (struct integer *)object_call((OOP)n_ch, (OOP)dec_fp);
 	}
 */	
 #endif /* _ENABLE_FINGER_TREE_ */
 
 	TRACE(fprintf(stderr, "dict_kind = %p\n", (void*)dict_kind));
-	TRACE(fprintf(stderr, "lookup_oop = %p\n", lookup_oop));
-	TRACE(fprintf(stderr, "bind_oop = %p\n", bind_oop));
+	TRACE(fprintf(stderr, "s_lookup = %p\n", s_lookup));
+	TRACE(fprintf(stderr, "s_bind = %p\n", s_bind));
 
-	OOP x_oop = symbol_new("x");
-	TRACE(fprintf(stderr, "x_oop = %p\n", x_oop));
-	TRACE(fprintf(stderr, "as_symbol(x_oop)->s = \"%s\"\n", as_symbol(x_oop)->s));
-	OOP result = object_call(empty_dict_oop, lookup_oop, x_oop);
+	OOP s_x = symbol_new("x");
+	TRACE(fprintf(stderr, "s_x = %p\n", s_x));
+	TRACE(fprintf(stderr, "as_symbol(s_x)->s = \"%s\"\n", as_symbol(s_x)->s));
+	OOP result = object_call(o_empty_dict, s_lookup, s_x);
 	TRACE(fprintf(stderr, "result = %p\n", result));
-	assert(undef_oop == result);
+	assert(o_undef == result);
 	
-	OOP _42_oop = integer_new(42);
-	TRACE(fprintf(stderr, "_42_oop = %p\n", _42_oop));
-	TRACE(fprintf(stderr, "as_integer(_42_oop)->n = %d\n", as_integer(_42_oop)->n));
-	OOP env_oop = object_call(empty_dict_oop, bind_oop, x_oop, _42_oop);
+	OOP n_42 = integer_new(42);
+	TRACE(fprintf(stderr, "n_42 = %p\n", n_42));
+	TRACE(fprintf(stderr, "as_integer(n_42)->n = %d\n", as_integer(n_42)->n));
+	OOP env_oop = object_call(o_empty_dict, s_bind, s_x, n_42);
 	TRACE(fprintf(stderr, "env_oop = %p\n", env_oop));
-	result = object_call(env_oop, lookup_oop, x_oop);
+	result = object_call(env_oop, s_lookup, s_x);
 	TRACE(fprintf(stderr, "result = %p\n", result));
-	assert(_42_oop == result);
+	assert(n_42 == result);
 
-	OOP y_oop = symbol_new("y");
-	TRACE(fprintf(stderr, "y_oop = %p\n", y_oop));
-	TRACE(fprintf(stderr, "as_symbol(y_oop)->s = \"%s\"\n", as_symbol(y_oop)->s));
-	env_oop = object_call(env_oop, bind_oop, y_oop, minus_1_oop);
+	OOP s_y = symbol_new("y");
+	TRACE(fprintf(stderr, "s_y = %p\n", s_y));
+	TRACE(fprintf(stderr, "as_symbol(s_y)->s = \"%s\"\n", as_symbol(s_y)->s));
+	env_oop = object_call(env_oop, s_bind, s_y, n_minus_1);
 	TRACE(fprintf(stderr, "env_oop = %p\n", env_oop));
 
-	OOP z_oop = symbol_new("z");
-	TRACE(fprintf(stderr, "z_oop = %p\n", z_oop));
-	TRACE(fprintf(stderr, "as_symbol(z_oop)->s = \"%s\"\n", as_symbol(z_oop)->s));
-	result = object_call(env_oop, lookup_oop, z_oop);
+	OOP s_z = symbol_new("z");
+	TRACE(fprintf(stderr, "s_z = %p\n", s_z));
+	TRACE(fprintf(stderr, "as_symbol(s_z)->s = \"%s\"\n", as_symbol(s_z)->s));
+	result = object_call(env_oop, s_lookup, s_z);
 	TRACE(fprintf(stderr, "result = %p\n", result));
-	assert(undef_oop == result);
+	assert(o_undef == result);
 
-	OOP a_integer_oop = integer_new('A');
-	OOP z_integer_oop = integer_new('Z');
-	OOP queue_oop = queue_new();
-	TRACE(fprintf(stderr, "queue_oop = %p\n", queue_oop));
-	result = object_call(queue_oop, empty_p_oop);
-	assert(_t_oop == result);
-	OOP n_integer_oop = a_integer_oop;
-	while (object_call(n_integer_oop, eq_p_oop, z_integer_oop) != _t_oop) {
-		queue_oop = object_call(queue_oop, give_x_oop, n_integer_oop);
-		TRACE(fprintf(stderr, "queue_oop = %p ^ [%c]\n", queue_oop, as_integer(n_integer_oop)->n));
-		n_integer_oop = object_call(n_integer_oop, add_oop, _1_oop);
+	OOP ch_A = integer_new('A');
+	OOP ch_Z = integer_new('Z');
+	OOP q_oop = queue_new();
+	TRACE(fprintf(stderr, "q_oop = %p\n", q_oop));
+	result = object_call(q_oop, s_empty_p);
+	assert(o_true == result);
+	OOP n_ch = ch_A;
+	while (object_call(n_ch, s_eq_p, ch_Z) != o_true) {
+		q_oop = object_call(q_oop, s_give_x, n_ch);
+		TRACE(fprintf(stderr, "q_oop = %p ^ [%c]\n", q_oop, as_integer(n_ch)->n));
+		n_ch = object_call(n_ch, s_add, n_1);
 	}
-	result = object_call(queue_oop, empty_p_oop);
-	assert(_f_oop == result);
-	n_integer_oop = a_integer_oop;
-	while (object_call(n_integer_oop, eq_p_oop, z_integer_oop) != _t_oop) {
-		OOP i_integer_oop = object_call(queue_oop, take_x_oop);
-		TRACE(fprintf(stderr, "queue_oop = [%c] ^ %p\n", as_integer(i_integer_oop)->n, queue_oop));
-		result = object_call(i_integer_oop, eq_p_oop, n_integer_oop);
-		assert(_t_oop == result);
-		n_integer_oop = object_call(n_integer_oop, add_oop, _1_oop);
+	result = object_call(q_oop, s_empty_p);
+	assert(o_false == result);
+	n_ch = ch_A;
+	while (object_call(n_ch, s_eq_p, ch_Z) != o_true) {
+		OOP i_integer_oop = object_call(q_oop, s_take_x);
+		TRACE(fprintf(stderr, "q_oop = [%c] ^ %p\n", as_integer(i_integer_oop)->n, q_oop));
+		result = object_call(i_integer_oop, s_eq_p, n_ch);
+		assert(o_true == result);
+		n_ch = object_call(n_ch, s_add, n_1);
 	}
-	result = object_call(queue_oop, empty_p_oop);
-	assert(_t_oop == result);
+	result = object_call(q_oop, s_empty_p);
+	assert(o_true == result);
 
-	TRACE(fprintf(stderr, "create_oop = %p\n", create_oop));
-	TRACE(fprintf(stderr, "send_oop = %p\n", send_oop));
-	TRACE(fprintf(stderr, "become_oop = %p\n", become_oop));
-	TRACE(fprintf(stderr, "dispatch_oop = %p\n", dispatch_oop));
+	TRACE(fprintf(stderr, "s_create_x = %p\n", s_create_x));
+	TRACE(fprintf(stderr, "s_send_x = %p\n", s_send_x));
+	TRACE(fprintf(stderr, "s_become_x = %p\n", s_become_x));
+	TRACE(fprintf(stderr, "s_dispatch_x = %p\n", s_dispatch_x));
 
-	OOP config_oop = config_new();
-	result = object_call(config_oop, dispatch_oop, _0_oop);
+	OOP cfg = config_new();
+	// dispatch empty queue
+	result = object_call(cfg, s_dispatch_x, n_0);
 	TRACE(fprintf(stderr, "result = %p\n", result));
-	assert(_t_oop == object_call(result, eq_p_oop, _0_oop));
-	OOP event_oop = event_new(sink_actor_oop, _42_oop);
-	TRACE(fprintf(stderr, "event_oop = %p\n", event_oop));
-	result = object_call(config_oop, give_x_oop, event_oop);
+	assert(o_true == object_call(result, s_eq_p, n_0));
+	// enqueue test event(s)
+//	OOP a_fwd = actor_new(forward_beh_new(a_sink));
+	OOP a_fwd = actor_new(one_shot_beh_new(a_sink));
+	TRACE(fprintf(stderr, "a_fwd = %p\n", a_fwd));
+	OOP event = event_new(a_fwd, n_42);
+	TRACE(fprintf(stderr, "event = %p\n", event));
+	result = object_call(cfg, s_give_x, event);
 	TRACE(fprintf(stderr, "result = %p\n", result));
-	assert(_t_oop == object_call(result, eq_p_oop, _1_oop));
-	result = object_call(config_oop, dispatch_oop, _1_oop);
+	assert(o_true == object_call(result, s_eq_p, n_1));
+	event = event_new(a_fwd, n_1);
+	TRACE(fprintf(stderr, "event = %p\n", event));
+	result = object_call(cfg, s_give_x, event);
 	TRACE(fprintf(stderr, "result = %p\n", result));
-	assert(_t_oop == object_call(result, eq_p_oop, _0_oop));
+	assert(o_true == object_call(result, s_eq_p, n_2));
+	// dispatch up to 5 events
+	OOP n_5 = integer_new(5);
+	result = object_call(cfg, s_dispatch_x, n_5);
+	TRACE(fprintf(stderr, "result = %p\n", result));
+	assert(o_true == object_call(result, s_eq_p, n_0));
 }
 
 /*
