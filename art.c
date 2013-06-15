@@ -77,8 +77,6 @@ KIND(object_kind);
 
 struct object undef_object = { object_kind };
 #define	o_undef	(&undef_object)
-struct object nil_object = { object_kind };
-#define	o_nil	(&nil_object)
 
 KIND(object_kind)
 {
@@ -154,7 +152,11 @@ struct symbol dispatch_x_symbol = { { symbol_kind }, "dispatch!" };
 
 /*
 pair:
-	A combination of 2 object pointers.
+	A combination of 2 object pointers.  May be treated as a list, terminated by 'o_nil'.
+
+	o' := o.push(x)			-- return a new list with 'x' at the head
+	boolean := o.empty?()	-- return true if list is empty, otherwise false
+	(x, o') := o.pop()		-- remove 'x' from the head, returning it and the new list
 */
 
 struct pair {
@@ -179,11 +181,36 @@ pair_new(OOP h, OOP t)
 KIND(pair_kind)
 {
 	if (pair_kind == self->kind) {
-		struct pair * this = as_pair(self);
-		/* no object protocol for pair */
+//		struct pair * this = as_pair(self);
+		OOP cmd = take_arg();
+		if (cmd == s_empty_p) {
+			return o_false;
+		} else if (cmd == s_pop) {
+			return self;
+		} else if (cmd == s_push) {
+			OOP x = take_arg();
+			return pair_new(x, self);
+		}
 	}
 	return o_undef;
 }
+
+KIND(nil_kind)
+{
+	if (nil_kind == self->kind) {
+		OOP cmd = take_arg();
+		if (cmd == s_empty_p) {
+			return o_true;
+		} else if (cmd == s_push) {
+			OOP x = take_arg();
+			return pair_new(x, self);
+		}
+	}
+	return o_undef;
+}
+
+struct object nil_object = { nil_kind };
+#define	o_nil	(&nil_object)
 
 /*
 queue:
@@ -385,10 +412,10 @@ struct integer _2_integer = { { integer_kind }, 2 };
 finger:
 	Small collections of 1 to 4 items.
    
-	o' := o.push(x)
-	(x, o') := o.pop()
-	o' := o.put(x)
-	(x, o') := o.pull()
+	o' := o.push(x)			-- return a new list with 'x' at the head
+	(x, o') := o.pop()		-- remove 'x' from the head, returning it and the new list
+	o' := o.put(x)			-- return a new list with 'x' at the tail
+	(x, o') := o.pull()		-- remove 'x' from the tail, returning it and the new list
 
 	push -> [ head ] -> pop
 			[ ...  ]
@@ -753,22 +780,22 @@ KIND(event_kind)
 		if (cmd == s_dispatch_x) {
 			OOP beh = as_actor(this->actor)->beh;
 			TRACE(fprintf(stderr, "  %p: dispatch {beh:%p}\n", this, beh));
-			this->actors = o_nil;
-			this->events = o_nil;
+			this->actors = o_nil;  // empty actor stack
+			this->events = o_nil;  // empty event stack
 			this->beh = beh;
 			return object_call(beh, this);  // invoke actor behavior
 		} else if (cmd == s_create_x) {
 			OOP beh = take_arg();
 			TRACE(fprintf(stderr, "  %p: create {beh:%p}\n", this, beh));
 			OOP actor = actor_new(beh);
-			this->actors = pair_new(actor, this->actors);  // add actor to stack
+			this->actors = object_call(this->actors, s_push, actor);  // add actor to stack
 			return actor;
 		} else if (cmd == s_send_x) {
 			OOP actor = take_arg();
 			OOP msg = take_arg();
 			TRACE(fprintf(stderr, "  %p: send {actor:%p, msg:%p}\n", this, actor, msg));
 			OOP event = event_new(actor, msg);
-			this->events = pair_new(event, this->events);  // add event to stack
+			this->events = object_call(this->events, s_push, event);  // add event to stack
 			return event;
 		} else if (cmd == s_become_x) {
 			OOP beh = take_arg();
@@ -825,7 +852,6 @@ KIND(forward_beh_kind)
 	if (forward_beh_kind == self->kind) {
 		struct forward_beh * this = as_forward_beh(self);
 		TRACE(fprintf(stderr, "%p forward_beh_kind {target:%p}\n", this, this->target));
-
 		OOP evt = take_arg();
 		OOP act = as_event(evt)->actor;
 		OOP msg = as_event(evt)->msg;
@@ -924,9 +950,10 @@ KIND(config_kind)
 				struct event * ep = as_event(evt);
 				OOP events = ep->events;
 				while (o_nil != events) {  // enqueue events
-					TRACE(fprintf(stderr, "  %p: events=%p\n", this, events));
-					object_call(self, s_give_x, as_pair(events)->h);
-					events = as_pair(events)->t;
+					struct pair * pp = as_pair(object_call(events, s_pop));
+					TRACE(fprintf(stderr, "  %p: events=[%p]^%p\n", this, pp->h, pp->t));
+					object_call(self, s_give_x, pp->h);
+					events = pp->t;
 				}
 				as_actor(ep->actor)->beh = ep->beh;  // replace behavior
 				TRACE(fprintf(stderr, "  %p: beh=%p\n", this, ep->beh));
@@ -1008,22 +1035,22 @@ run_tests()
 	OOP n_42 = integer_new(42);
 	TRACE(fprintf(stderr, "n_42 = %p\n", n_42));
 	TRACE(fprintf(stderr, "as_integer(n_42)->n = %d\n", as_integer(n_42)->n));
-	OOP env_oop = object_call(o_empty_dict, s_bind, s_x, n_42);
-	TRACE(fprintf(stderr, "env_oop = %p\n", env_oop));
-	result = object_call(env_oop, s_lookup, s_x);
+	OOP d_env = object_call(o_empty_dict, s_bind, s_x, n_42);
+	TRACE(fprintf(stderr, "d_env = %p\n", d_env));
+	result = object_call(d_env, s_lookup, s_x);
 	TRACE(fprintf(stderr, "result = %p\n", result));
 	assert(n_42 == result);
 
 	OOP s_y = symbol_new("y");
 	TRACE(fprintf(stderr, "s_y = %p\n", s_y));
 	TRACE(fprintf(stderr, "as_symbol(s_y)->s = \"%s\"\n", as_symbol(s_y)->s));
-	env_oop = object_call(env_oop, s_bind, s_y, n_minus_1);
-	TRACE(fprintf(stderr, "env_oop = %p\n", env_oop));
+	d_env = object_call(d_env, s_bind, s_y, n_minus_1);
+	TRACE(fprintf(stderr, "d_env = %p\n", d_env));
 
 	OOP s_z = symbol_new("z");
 	TRACE(fprintf(stderr, "s_z = %p\n", s_z));
 	TRACE(fprintf(stderr, "as_symbol(s_z)->s = \"%s\"\n", as_symbol(s_z)->s));
-	result = object_call(env_oop, s_lookup, s_z);
+	result = object_call(d_env, s_lookup, s_z);
 	TRACE(fprintf(stderr, "result = %p\n", result));
 	assert(o_undef == result);
 
@@ -1043,9 +1070,9 @@ run_tests()
 	assert(o_false == result);
 	n_ch = ch_A;
 	while (object_call(n_ch, s_eq_p, ch_Z) != o_true) {
-		OOP i_integer_oop = object_call(q_oop, s_take_x);
-		TRACE(fprintf(stderr, "q_oop = [%c] ^ %p\n", as_integer(i_integer_oop)->n, q_oop));
-		result = object_call(i_integer_oop, s_eq_p, n_ch);
+		OOP n_i = object_call(q_oop, s_take_x);
+		TRACE(fprintf(stderr, "q_oop = [%c] ^ %p\n", as_integer(n_i)->n, q_oop));
+		result = object_call(n_i, s_eq_p, n_ch);
 		assert(o_true == result);
 		n_ch = object_call(n_ch, s_add, n_1);
 	}
