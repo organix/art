@@ -141,6 +141,12 @@ struct symbol lookup_symbol = { { symbol_kind }, "lookup" };
 #define	s_lookup	((OOP)&lookup_symbol)
 struct symbol add_symbol = { { symbol_kind }, "add" };
 #define	s_add	((OOP)&add_symbol)
+struct symbol match_symbol = { { symbol_kind }, "match" };
+#define	s_match	((OOP)&match_symbol)
+struct symbol eval_symbol = { { symbol_kind }, "eval" };
+#define	s_eval	((OOP)&eval_symbol)
+struct symbol combine_symbol = { { symbol_kind }, "combine" };
+#define	s_combine	((OOP)&match_combine)
 struct symbol create_x_symbol = { { symbol_kind }, "create!" };
 #define	s_create_x	((OOP)&create_x_symbol)
 struct symbol send_x_symbol = { { symbol_kind }, "send!" };
@@ -268,9 +274,12 @@ dict:
 	In this implementation, each node holds a single 'name'/'value' pair.
 	The 'next' pointer delegates to a linear chain of dictionaries.
 
-	x := o.lookup(name)		-- return value 'x' bound to 'name', or undefined
+	x := o.lookup(name)		-- return value 'x' bound to 'name', or 'o_fail'
 	o' := o.bind(name, x)	-- return new dictionary with 'name' bound to 'x'
 */
+
+struct object fail_object = { object_kind };
+#define	o_fail	(&fail_object)
 
 struct dict {
 	struct object	o;
@@ -305,7 +314,7 @@ KIND(empty_dict_kind)
 		if (cmd == s_lookup) {
 			OOP name = take_arg();
 			TRACE(fprintf(stderr, "  %p: name=%p\n", self, name));
-			return o_undef;
+			return o_fail;
 		} else if (cmd == s_bind) {
 			OOP name = take_arg();
 			OOP value = take_arg();
@@ -700,6 +709,403 @@ KIND(ft_many_kind)
 #endif /* _ENABLE_FINGER_TREE_ */
 
 /*
+match:
+	Matches represent composable contexts for pattern matching.
+
+	(in, env, out) -> (in', env', out') | #fail
+*/
+
+struct match {
+	struct object	o;
+	OOP				in;			// position in input value
+	OOP				env;		// dictionary of identifier bindings
+	OOP				out;		// semantic value (output)
+};
+
+#define	as_match(oop)	((struct match *)(oop))
+
+KIND(match_kind);
+
+OOP
+match_new(OOP in, OOP env, OOP out)
+{
+	struct match * this = object_alloc(struct match, match_kind);
+	this->in = in;
+	this->env = env;
+	this->out = out;
+	return (OOP)this;
+}
+
+KIND(match_kind)
+{
+	/* no object protocol */
+	return o_undef;
+}
+
+/*
+pattern:
+	Patterns are used to match structured values, possibly binding identifiers to the components.
+
+	match' := o.apply(match)	-- return the result of applying pattern to 'match', or 'o_fail'
+*/
+
+/* LET fail = \in.(#fail, in) */
+KIND(fail_pattern_kind)
+{
+	if (fail_pattern_kind == self->kind) {
+		TRACE(fprintf(stderr, "%p(fail_pattern_kind)\n", self));
+		OOP cmd = take_arg();
+		TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
+		if (cmd == s_match) {
+			OOP match = take_arg();
+			struct match * mp = as_match(match);
+			TRACE(fprintf(stderr, "  %p: match {in:%p env:%p out:%p}\n", self, mp->in, mp->env, mp->out));
+			return o_fail;
+		}
+	}
+	return o_undef;
+}
+struct object fail_pattern = { fail_pattern_kind };
+#define	ptrn_fail	(&fail_pattern)
+
+/* LET empty = \in.(#ok, (), in) */
+KIND(empty_pattern_kind)
+{
+	if (empty_pattern_kind == self->kind) {
+		TRACE(fprintf(stderr, "%p(empty_pattern_kind)\n", self));
+		OOP cmd = take_arg();
+		TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
+		if (cmd == s_match) {
+			OOP match = take_arg();
+			struct match * mp = as_match(match);
+			TRACE(fprintf(stderr, "  %p: match {in:%p env:%p out:%p}\n", self, mp->in, mp->env, mp->out));
+			return match_new(mp->in, mp->env, o_nil);
+		}
+	}
+	return o_undef;
+}
+struct object empty_pattern = { empty_pattern_kind };
+#define	ptrn_empty	(&empty_pattern)
+
+/* LET any = \in.(
+	CASE in OF
+	() : (#fail, in)
+	(token, rest) : (#ok, token, rest)
+	END
+) */
+KIND(any_pattern_kind)
+{
+	if (any_pattern_kind == self->kind) {
+		TRACE(fprintf(stderr, "%p(any_pattern_kind)\n", self));
+		OOP cmd = take_arg();
+		TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
+		if (cmd == s_match) {
+			OOP match = take_arg();
+			struct match * mp = as_match(match);
+			TRACE(fprintf(stderr, "  %p: match {in:%p env:%p out:%p}\n", self, mp->in, mp->env, mp->out));
+			if (object_call(mp->in, s_empty_p) == o_false) {
+				struct pair * pp = as_pair(object_call(mp->in, s_pop));
+				return match_new(pp->t, mp->env, pp->h);
+			}
+			return o_fail;
+		}
+	}
+	return o_undef;
+}
+struct object any_pattern = { any_pattern_kind };
+#define	ptrn_any	(&any_pattern)
+
+/* LET eq(value) = \in.(
+	CASE in OF
+	() : (#fail, in)
+	($value, rest) : (#ok, value, rest)
+	_ : (#fail, in)
+	END
+) */
+struct eq_pattern {
+	struct object	o;
+	OOP				value;		// value to match
+};
+#define	as_eq_pattern(oop)	((struct eq_pattern *)(oop))
+KIND(eq_pattern_kind)
+{
+	if (eq_pattern_kind == self->kind) {
+		struct eq_pattern * this = as_eq_pattern(self);
+		TRACE(fprintf(stderr, "%p(eq_pattern_kind, %p)\n", this, this->value));
+		OOP cmd = take_arg();
+		TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
+		if (cmd == s_match) {
+			OOP match = take_arg();
+			struct match * mp = as_match(match);
+			TRACE(fprintf(stderr, "  %p: match {in:%p env:%p out:%p}\n", self, mp->in, mp->env, mp->out));
+			if (object_call(mp->in, s_empty_p) == o_false) {
+				struct pair * pp = as_pair(object_call(mp->in, s_pop));
+				if (object_call(this->value, s_eq_p, pp->h) == o_true) {
+					return match_new(pp->t, mp->env, pp->h);
+				}
+			}
+			return o_fail;
+		}
+	}
+	return o_undef;
+}
+OOP
+eq_pattern_new(OOP value)
+{
+	struct eq_pattern * this = object_alloc(struct eq_pattern, eq_pattern_kind);
+	this->value = value;
+	return (OOP)this;
+}
+
+/* LET if(test) = \in.(
+	CASE in OF
+	() : (#fail, in)
+	(token, rest) : (
+		CASE test(token) OF
+		TRUE : (#ok, token, rest)
+		_ : (#fail, in)
+		END
+	)
+	END
+) */
+struct if_pattern {
+	struct object	o;
+	OOP				test;		// predicate to test tokens
+};
+#define	as_if_pattern(oop)	((struct if_pattern *)(oop))
+KIND(if_pattern_kind)
+{
+	if (if_pattern_kind == self->kind) {
+		struct if_pattern * this = as_if_pattern(self);
+		TRACE(fprintf(stderr, "%p(if_pattern_kind, %p)\n", this, this->test));
+		OOP cmd = take_arg();
+		TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
+		if (cmd == s_match) {
+			OOP match = take_arg();
+			struct match * mp = as_match(match);
+			TRACE(fprintf(stderr, "  %p: match {in:%p env:%p out:%p}\n", self, mp->in, mp->env, mp->out));
+			if (object_call(mp->in, s_empty_p) == o_false) {
+				struct pair * pp = as_pair(object_call(mp->in, s_pop));
+				if (object_call(this->test, pp->h) == o_true) {		// FIXME: IS THIS THE RIGHT PROTOCOL FOR PREDICATE FUNCTIONS?
+					return match_new(pp->t, mp->env, pp->h);
+				}
+			}
+			return o_fail;
+		}
+	}
+	return o_undef;
+}
+OOP
+if_pattern_new(OOP test)
+{
+	struct if_pattern * this = object_alloc(struct if_pattern, if_pattern_kind);
+	this->test = test;
+	return (OOP)this;
+}
+
+/* LET or(left, right) = \in.(
+	CASE left(in) OF
+	(#ok, value, in') : (#ok, value, in')
+	(#fail, in') : right(in)
+	END
+) */
+struct or_pattern {
+	struct object	o;
+	OOP				head;		// first pattern
+	OOP				tail;		// second pattern
+};
+#define	as_or_pattern(oop)	((struct or_pattern *)(oop))
+KIND(or_pattern_kind)
+{
+	if (or_pattern_kind == self->kind) {
+//		struct or_pattern * this = as_or_pattern(self);  -- moved inside loop...
+		TRACE(fprintf(stderr, "%p(or_pattern_kind)\n", self));
+		OOP cmd = take_arg();
+		TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
+		if (cmd == s_match) {
+			OOP match = take_arg();
+			struct match * mp = as_match(match);
+			TRACE(fprintf(stderr, "  %p: match {in:%p env:%p out:%p}\n", self, mp->in, mp->env, mp->out));
+			do {
+				struct or_pattern * this = as_or_pattern(self);
+				TRACE(fprintf(stderr, "%p(or_pattern_kind, %p, %p)\n", this, this->head, this->tail));
+				OOP match1 = object_call(this->head, s_match, match);
+				if (match_kind == match1->kind) {
+					return match1;  // success
+				}
+				self = this->tail;  // simulate tail-recursion
+			} while (or_pattern_kind == self->kind);
+			return object_call(self, s_match, match);
+		}
+	}
+	return o_undef;
+}
+OOP
+or_pattern_new(OOP head, OOP tail)
+{
+	struct or_pattern * this = object_alloc(struct or_pattern, or_pattern_kind);
+	this->head = head;
+	this->tail = tail;
+	return (OOP)this;
+}
+
+/* LET and(left, right) = \in.(
+	CASE left(in) OF
+	(#fail, in') : (#fail, in)
+	(#ok, value, in') : (
+		CASE right(in') OF
+		(#fail, in'') : (#fail, in)
+		(#ok, value', in'') : (#ok, (value, value'), in'')
+		END
+	)
+	END
+) */
+struct and_pattern {
+	struct object	o;
+	OOP				head;		// first pattern
+	OOP				tail;		// second pattern
+};
+#define	as_and_pattern(oop)	((struct and_pattern *)(oop))
+KIND(and_pattern_kind)
+{
+	if (and_pattern_kind == self->kind) {
+		struct and_pattern * this = as_and_pattern(self);
+		TRACE(fprintf(stderr, "%p(and_pattern_kind, %p, %p)\n", this, this->head, this->tail));
+		OOP cmd = take_arg();
+		TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
+		if (cmd == s_match) {
+			OOP match = take_arg();
+			struct match * mp = as_match(match);
+			TRACE(fprintf(stderr, "  %p: match {in:%p env:%p out:%p}\n", self, mp->in, mp->env, mp->out));
+			OOP match1 = object_call(this->head, s_match, match);
+			if (match_kind == match1->kind) {
+				struct match * mp1 = as_match(match1);
+				OOP match2 = object_call(this->tail, s_match, match1);
+				if (match_kind == match2->kind) {
+					struct match * mp2 = as_match(match2);
+					OOP out = pair_new(mp1->out, mp2->out);
+					return match_new(mp2->in, mp2->env, out);
+				}
+			}
+			return o_fail;
+		}
+	}
+	return o_undef;
+}
+OOP
+and_pattern_new(OOP head, OOP tail)
+{
+	struct and_pattern * this = object_alloc(struct and_pattern, and_pattern_kind);
+	this->head = head;
+	this->tail = tail;
+	return (OOP)this;
+}
+
+/* LET bind(name, ptrn) = \(value, env, in).(
+	CASE ptrn(value, env, in) OF
+	(#ok, value', env', in') : (#ok, value', env'.bind(name, value'), in')
+	(#fail, value', env', in') : (#fail, value, env, in)
+	END
+) */
+struct bind_pattern {
+	struct object	o;
+	OOP				name;		// identifier to bind
+	OOP				ptrn;		// pattern to match
+};
+#define	as_bind_pattern(oop)	((struct bind_pattern *)(oop))
+KIND(bind_pattern_kind)
+{
+	if (bind_pattern_kind == self->kind) {
+		struct bind_pattern * this = as_bind_pattern(self);
+		TRACE(fprintf(stderr, "%p(bind_pattern_kind, %p, %p)\n", this, this->name, this->ptrn));
+		OOP cmd = take_arg();
+		TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
+		if (cmd == s_match) {
+			OOP match = take_arg();
+			struct match * mp = as_match(match);
+			TRACE(fprintf(stderr, "  %p: match {in:%p env:%p out:%p}\n", self, mp->in, mp->env, mp->out));
+			OOP match1 = object_call(this->ptrn, s_match, match);
+			if (match_kind == match1->kind) {
+				struct match * mp1 = as_match(match1);
+				OOP env = object_call(mp1->env, s_bind, this->name, mp1->out);
+				return match_new(mp1->in, env, mp1->out);
+			}
+			return o_fail;
+		}
+	}
+	return o_undef;
+}
+OOP
+bind_pattern_new(OOP name, OOP ptrn)
+{
+	struct bind_pattern * this = object_alloc(struct bind_pattern, bind_pattern_kind);
+	this->name = name;
+	this->ptrn = ptrn;
+	return (OOP)this;
+}
+
+/*
+input = "2#1011.\n"
+digit = '0' | '1'
+digits = digit digits | digit
+grammar = any '#' digits
+*/
+
+/* LET alt(matches) = (
+	CASE matches OF
+	() : fail
+	(first, rest) : or(first, alt(rest))
+	last : last
+	END
+) */
+
+/* LET seq(matches) = (
+	CASE matches OF
+	() : empty
+	(first, rest) : and(first, seq(rest))
+	last : last
+	END
+) */
+
+/* LET opt(match) = or(match, empty) */
+
+/* LET star(match) = \in.((opt(and(match, star(match))))(in)) */
+
+/* LET plus(match) = and(match, star(match)) */
+
+/* LET not(match) = \in.(
+	CASE match(in) OF
+	(#ok, value, in') : (#fail, in)
+	(#fail, in') : (#ok, (), in)
+	END
+) */
+
+/* LET peek(match) = not(not(match)) */
+
+/*
+expr:
+	Expressions represent procedures for computing a value.
+	
+	value := o.eval(env)		-- return result of evaluating this expression in environment 'env'
+*/
+
+KIND(const_expr_kind)
+{
+	if (const_expr_kind == self->kind) {
+		TRACE(fprintf(stderr, "%p(const_expr_kind)\n", self));
+		OOP cmd = take_arg();
+		TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
+		if (cmd == s_eval) {
+			OOP env = take_arg();
+			TRACE(fprintf(stderr, "  %p: eval {env:%p}\n", self, env));
+			//...
+		}
+	}
+	return o_undef;
+}
+
+
+/*
 actor:
 	Actors encapsulate state/behavior reacting to asynchronous events (messages).
 	
@@ -964,6 +1370,7 @@ KIND(config_kind)
 			return this->remain;
 		}
 	}
+	return o_undef;
 }
 
 /*
@@ -973,6 +1380,7 @@ void
 run_tests()
 {
 	TRACE(fprintf(stderr, "o_undef = %p\n", o_undef));
+	TRACE(fprintf(stderr, "o_fail = %p\n", o_fail));
 	TRACE(fprintf(stderr, "o_nil = %p\n", o_nil));
 
 	TRACE(fprintf(stderr, "o_true = %p\n", o_true));
@@ -1030,7 +1438,7 @@ run_tests()
 	TRACE(fprintf(stderr, "as_symbol(s_x)->s = \"%s\"\n", as_symbol(s_x)->s));
 	OOP result = object_call(o_empty_dict, s_lookup, s_x);
 	TRACE(fprintf(stderr, "result = %p\n", result));
-	assert(o_undef == result);
+	assert(o_fail == result);
 	
 	OOP n_42 = integer_new(42);
 	TRACE(fprintf(stderr, "n_42 = %p\n", n_42));
@@ -1052,7 +1460,7 @@ run_tests()
 	TRACE(fprintf(stderr, "as_symbol(s_z)->s = \"%s\"\n", as_symbol(s_z)->s));
 	result = object_call(d_env, s_lookup, s_z);
 	TRACE(fprintf(stderr, "result = %p\n", result));
-	assert(o_undef == result);
+	assert(o_fail == result);
 
 	OOP ch_A = integer_new('A');
 	OOP ch_Z = integer_new('Z');
