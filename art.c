@@ -787,6 +787,52 @@ KIND(empty_pattern_kind)
 struct object empty_pattern = { empty_pattern_kind };
 #define	ptrn_empty	(&empty_pattern)
 
+/* LET all = \in.(#ok, in, in) */
+KIND(all_pattern_kind)
+{
+	if (all_pattern_kind == self->kind) {
+		TRACE(fprintf(stderr, "%p(all_pattern_kind)\n", self));
+		OOP cmd = take_arg();
+		TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
+		if (cmd == s_match) {
+			OOP match = take_arg();
+			struct match * mp = as_match(match);
+			TRACE(fprintf(stderr, "  %p: match {in:%p env:%p out:%p}\n", self, mp->in, mp->env, mp->out));
+			return match_new(mp->in, mp->env, mp->in);
+		}
+	}
+	return o_undef;
+}
+struct object all_pattern = { all_pattern_kind };
+#define	ptrn_all	(&all_pattern)
+
+/* LET end = \in.(
+	CASE in OF
+	() : (#ok, (), in)
+	_ : (#fail, in)
+	END
+) */
+KIND(end_pattern_kind)
+{
+	if (end_pattern_kind == self->kind) {
+		TRACE(fprintf(stderr, "%p(end_pattern_kind)\n", self));
+		OOP cmd = take_arg();
+		TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
+		if (cmd == s_match) {
+			OOP match = take_arg();
+			struct match * mp = as_match(match);
+			TRACE(fprintf(stderr, "  %p: match {in:%p env:%p out:%p}\n", self, mp->in, mp->env, mp->out));
+			if (object_call(mp->in, s_empty_p) == o_true) {
+				return match_new(mp->in, mp->env, o_nil);
+			}
+			return o_fail;
+		}
+	}
+	return o_undef;
+}
+struct object end_pattern = { end_pattern_kind };
+#define	ptrn_end	(&end_pattern)
+
 /* LET any = \in.(
 	CASE in OF
 	() : (#fail, in)
@@ -1009,7 +1055,7 @@ and_pattern_new(OOP head, OOP tail)
 ) */
 struct bind_pattern {
 	struct object	o;
-	OOP				name;		// identifier to bind
+	OOP				name;		// symbol to bind
 	OOP				ptrn;		// pattern to match
 };
 #define	as_bind_pattern(oop)	((struct bind_pattern *)(oop))
@@ -1088,6 +1134,10 @@ expr:
 	
 	value := o.eval(env)		-- return result of evaluating this expression in environment 'env'
 */
+
+// "bottom" represents the inability to determine a result when evaluating an expression
+struct object bottom_object = { object_kind };
+#define	o_bottom	(&bottom_object)
 
 KIND(const_expr_kind)
 {
@@ -1202,7 +1252,7 @@ appl_expr_new(OOP comb)
 struct thunk_expr {
 	struct object	o;
 	OOP				env;		// static environment
-	OOP				name;		// formal parameter
+	OOP				ptrn;		// formal parameter pattern
 	OOP				expr;		// body expression
 };
 #define	as_thunk_expr(oop)	((struct thunk_expr *)(oop))
@@ -1210,7 +1260,7 @@ KIND(thunk_expr_kind)
 {
 	if (thunk_expr_kind == self->kind) {
 		struct thunk_expr * this = as_thunk_expr(self);
-		TRACE(fprintf(stderr, "%p(thunk_expr_kind, %p, %p, %p)\n", this, this->env, this->name, this->expr));
+		TRACE(fprintf(stderr, "%p(thunk_expr_kind, %p, %p, %p)\n", this, this->env, this->ptrn, this->expr));
 		OOP cmd = take_arg();
 		TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
 		if (cmd == s_eval) {
@@ -1221,26 +1271,31 @@ KIND(thunk_expr_kind)
 			OOP opnd = take_arg();
 			OOP env = take_arg();		// dynamic environment (ignored)
 			TRACE(fprintf(stderr, "  %p: combine {opnd:%p env:%p}\n", self, opnd, env));
-			OOP env1 = object_call(this->env, s_bind, this->name, opnd);  // extend static environment
-			TRACE(fprintf(stderr, "  %p: env1=%p\n", self, env1));
-			return object_call(this->expr, s_eval, env1);  // evaluate body in extended environment
+			OOP match = match_new(opnd, this->env, o_undef);
+			match = object_call(this->ptrn, s_match, match);
+			if (match_kind == match->kind) {
+				struct match * mp = as_match(match);
+				TRACE(fprintf(stderr, "  %p: env'=%p\n", self, mp->env));
+				return object_call(this->expr, s_eval, mp->env);  // evaluate body in extended environment
+			}
+			return o_bottom;  // parameter pattern mismatch
 		}
 	}
 	return o_undef;
 }
 OOP
-thunk_expr_new(OOP env, OOP name, OOP expr)
+thunk_expr_new(OOP env, OOP ptrn, OOP expr)
 {
 	struct thunk_expr * this = object_alloc(struct thunk_expr, thunk_expr_kind);
 	this->env = env;
-	this->name = name;
+	this->ptrn = ptrn;
 	this->expr = expr;
 	return (OOP)this;
 }
 
 struct lambda_expr {
 	struct object	o;
-	OOP				name;		// formal parameter
+	OOP				ptrn;		// formal parameter pattern
 	OOP				expr;		// body expression
 };
 #define	as_lambda_expr(oop)	((struct lambda_expr *)(oop))
@@ -1248,13 +1303,13 @@ KIND(lambda_expr_kind)
 {
 	if (lambda_expr_kind == self->kind) {
 		struct lambda_expr * this = as_lambda_expr(self);
-		TRACE(fprintf(stderr, "%p(lambda_expr_kind, %p, %p)\n", this, this->name, this->expr));
+		TRACE(fprintf(stderr, "%p(lambda_expr_kind, %p, %p)\n", this, this->ptrn, this->expr));
 		OOP cmd = take_arg();
 		TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
 		if (cmd == s_eval) {
 			OOP env = take_arg();
 			TRACE(fprintf(stderr, "  %p: eval {env:%p}\n", self, env));
-			OOP oper = thunk_expr_new(env, this->name, this->expr);
+			OOP oper = thunk_expr_new(env, this->ptrn, this->expr);
 			TRACE(fprintf(stderr, "  %p: oper=%p\n", self, oper));
 			return appl_expr_new(oper);
 		}
@@ -1262,10 +1317,10 @@ KIND(lambda_expr_kind)
 	return o_undef;
 }
 OOP
-lambda_expr_new(OOP name, OOP expr)
+lambda_expr_new(OOP ptrn, OOP expr)
 {
 	struct lambda_expr * this = object_alloc(struct lambda_expr, lambda_expr_kind);
-	this->name = name;
+	this->ptrn = ptrn;
 	this->expr = expr;
 	return (OOP)this;
 }
@@ -1273,7 +1328,7 @@ lambda_expr_new(OOP name, OOP expr)
 struct oper_expr {
 	struct object	o;
 	OOP				env;		// static environment
-	OOP				name;		// formal parameter name
+	OOP				ptrn;		// formal parameter pattern
 	OOP				evar;		// environment variable name
 	OOP				expr;		// body expression
 };
@@ -1282,7 +1337,7 @@ KIND(oper_expr_kind)
 {
 	if (oper_expr_kind == self->kind) {
 		struct oper_expr * this = as_oper_expr(self);
-		TRACE(fprintf(stderr, "%p(oper_expr_kind, %p, %p, %p, %p)\n", this, this->env, this->name, this->evar, this->expr));
+		TRACE(fprintf(stderr, "%p(oper_expr_kind, %p, %p, %p, %p)\n", this, this->env, this->ptrn, this->evar, this->expr));
 		OOP cmd = take_arg();
 		TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
 		if (cmd == s_eval) {
@@ -1293,21 +1348,28 @@ KIND(oper_expr_kind)
 			OOP opnd = take_arg();
 			OOP env = take_arg();		// dynamic environment
 			TRACE(fprintf(stderr, "  %p: combine {opnd:%p env:%p}\n", self, opnd, env));
-			OOP env1 = object_call(this->env, s_bind, this->name, opnd);  // extend static environment
-			TRACE(fprintf(stderr, "  %p: env1=%p\n", self, env1));
-			OOP env2 = object_call(env1, s_bind, this->evar, env);  // bind dynamic environment
-			TRACE(fprintf(stderr, "  %p: env2=%p\n", self, env2));
-			return object_call(this->expr, s_eval, env2);  // evaluate body in extended environment
+
+			OOP match = match_new(opnd, this->env, o_undef);
+			match = object_call(this->ptrn, s_match, match);
+			if (match_kind == match->kind) {
+				OOP env1 = as_match(match)->env;
+				TRACE(fprintf(stderr, "  %p: env1=%p\n", self, env1));
+				OOP env2 = object_call(env1, s_bind, this->evar, env);  // bind dynamic environment
+				TRACE(fprintf(stderr, "  %p: env2=%p\n", self, env2));
+				return object_call(this->expr, s_eval, env2);  // evaluate body in extended environment
+			}
+			return o_bottom;  // parameter pattern mismatch
+
 		}
 	}
 	return o_undef;
 }
 OOP
-oper_expr_new(OOP env, OOP name, OOP evar, OOP expr)
+oper_expr_new(OOP env, OOP ptrn, OOP evar, OOP expr)
 {
 	struct oper_expr * this = object_alloc(struct oper_expr, oper_expr_kind);
 	this->env = env;
-	this->name = name;
+	this->ptrn = ptrn;
 	this->evar = evar;
 	this->expr = expr;
 	return (OOP)this;
@@ -1704,7 +1766,7 @@ run_tests()
 	OOP expr_ident_x = ident_expr_new(s_x);
 	TRACE(fprintf(stderr, "expr_ident_x = %p\n", expr_ident_x));
 	OOP expr_example = combine_expr_new(
-		lambda_expr_new(s_x, expr_ident_x),
+		lambda_expr_new(bind_pattern_new(s_x, ptrn_all), expr_ident_x),
 		expr_const_42);
 	result = object_call(expr_example, s_eval, o_empty_dict);
 	TRACE(fprintf(stderr, "result = %p\n", result));
