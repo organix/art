@@ -146,7 +146,7 @@ struct symbol match_symbol = { { symbol_kind }, "match" };
 struct symbol eval_symbol = { { symbol_kind }, "eval" };
 #define	s_eval	((OOP)&eval_symbol)
 struct symbol combine_symbol = { { symbol_kind }, "combine" };
-#define	s_combine	((OOP)&match_combine)
+#define	s_combine	((OOP)&combine_symbol)
 struct symbol create_x_symbol = { { symbol_kind }, "create!" };
 #define	s_create_x	((OOP)&create_x_symbol)
 struct symbol send_x_symbol = { { symbol_kind }, "send!" };
@@ -1096,14 +1096,222 @@ KIND(const_expr_kind)
 		OOP cmd = take_arg();
 		TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
 		if (cmd == s_eval) {
-			OOP env = take_arg();
+			OOP env = take_arg();  // constants evaluate to themselves
 			TRACE(fprintf(stderr, "  %p: eval {env:%p}\n", self, env));
-			//...
+			return self;
 		}
 	}
 	return o_undef;
 }
 
+struct ident_expr {
+	struct object	o;
+	OOP				name;		// identifier to lookup
+};
+#define	as_ident_expr(oop)	((struct ident_expr *)(oop))
+KIND(ident_expr_kind)
+{
+	if (ident_expr_kind == self->kind) {
+		struct ident_expr * this = as_ident_expr(self);
+		TRACE(fprintf(stderr, "%p(ident_expr_kind, %p \"%s\")\n", this, this->name, as_symbol(this->name)->s));
+		OOP cmd = take_arg();
+		TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
+		if (cmd == s_eval) {
+			OOP env = take_arg();
+			TRACE(fprintf(stderr, "  %p: eval {env:%p}\n", self, env));
+			return object_call(env, s_lookup, this->name);
+		}
+	}
+	return o_undef;
+}
+OOP
+ident_expr_new(OOP name)
+{
+	struct ident_expr * this = object_alloc(struct ident_expr, ident_expr_kind);
+	this->name = name;
+	return (OOP)this;
+}
+
+struct combine_expr {
+	struct object	o;
+	OOP				oper;		// operator
+	OOP				opnd;		// operand
+};
+#define	as_combine_expr(oop)	((struct combine_expr *)(oop))
+KIND(combine_expr_kind)
+{
+	if (combine_expr_kind == self->kind) {
+		struct combine_expr * this = as_combine_expr(self);
+		TRACE(fprintf(stderr, "%p(combine_expr_kind, %p, %p)\n", this, this->oper, this->opnd));
+		OOP cmd = take_arg();
+		TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
+		if (cmd == s_eval) {
+			OOP env = take_arg();
+			TRACE(fprintf(stderr, "  %p: eval {env:%p}\n", self, env));
+			OOP comb = object_call(this->oper, s_eval, env);  // evaluate oper (in env) to yield combiner
+			TRACE(fprintf(stderr, "  %p: combiner=%p\n", self, comb));
+			return object_call(comb, s_combine, this->opnd, env);  // send operand to combiner (with env)
+		}
+	}
+	return o_undef;
+}
+OOP
+combine_expr_new(OOP oper, OOP opnd)
+{
+	struct combine_expr * this = object_alloc(struct combine_expr, combine_expr_kind);
+	this->oper = oper;
+	this->opnd = opnd;
+	return (OOP)this;
+}
+
+struct appl_expr {
+	struct object	o;
+	OOP				comb;		// combiner
+};
+#define	as_appl_expr(oop)	((struct appl_expr *)(oop))
+KIND(appl_expr_kind)
+{
+	if (appl_expr_kind == self->kind) {
+		struct appl_expr * this = as_appl_expr(self);
+		TRACE(fprintf(stderr, "%p(appl_expr_kind, %p)\n", this, this->comb));
+		OOP cmd = take_arg();
+		TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
+		if (cmd == s_eval) {
+			OOP env = take_arg();
+			TRACE(fprintf(stderr, "  %p: eval {env:%p}\n", self, env));
+			return self;  // applicatives evaluate to themselves
+		} else if (cmd == s_combine) {
+			OOP opnd = take_arg();
+			OOP env = take_arg();
+			TRACE(fprintf(stderr, "  %p: combine {opnd:%p env:%p}\n", self, opnd, env));
+			OOP arg = object_call(opnd, s_eval, env);  // evaluate opnd (in env) to yield argument
+			TRACE(fprintf(stderr, "  %p: arg=%p\n", self, arg));
+			return object_call(this->comb, s_combine, arg, env);  // send arg to combiner (with env)
+		}
+	}
+	return o_undef;
+}
+OOP
+appl_expr_new(OOP comb)
+{
+	struct appl_expr * this = object_alloc(struct appl_expr, appl_expr_kind);
+	this->comb = comb;
+	return (OOP)this;
+}
+
+struct thunk_expr {
+	struct object	o;
+	OOP				env;		// static environment
+	OOP				name;		// formal parameter
+	OOP				expr;		// body expression
+};
+#define	as_thunk_expr(oop)	((struct thunk_expr *)(oop))
+KIND(thunk_expr_kind)
+{
+	if (thunk_expr_kind == self->kind) {
+		struct thunk_expr * this = as_thunk_expr(self);
+		TRACE(fprintf(stderr, "%p(thunk_expr_kind, %p, %p, %p)\n", this, this->env, this->name, this->expr));
+		OOP cmd = take_arg();
+		TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
+		if (cmd == s_eval) {
+			OOP env = take_arg();
+			TRACE(fprintf(stderr, "  %p: eval {env:%p}\n", self, env));
+			return self;  // closures evaluate to themselves
+		} else if (cmd == s_combine) {
+			OOP opnd = take_arg();
+			OOP env = take_arg();		// dynamic environment (ignored)
+			TRACE(fprintf(stderr, "  %p: combine {opnd:%p env:%p}\n", self, opnd, env));
+			OOP env1 = object_call(this->env, s_bind, this->name, opnd);  // extend static environment
+			TRACE(fprintf(stderr, "  %p: env1=%p\n", self, env1));
+			return object_call(this->expr, s_eval, env1);  // evaluate body in extended environment
+		}
+	}
+	return o_undef;
+}
+OOP
+thunk_expr_new(OOP env, OOP name, OOP expr)
+{
+	struct thunk_expr * this = object_alloc(struct thunk_expr, thunk_expr_kind);
+	this->env = env;
+	this->name = name;
+	this->expr = expr;
+	return (OOP)this;
+}
+
+struct lambda_expr {
+	struct object	o;
+	OOP				name;		// formal parameter
+	OOP				expr;		// body expression
+};
+#define	as_lambda_expr(oop)	((struct lambda_expr *)(oop))
+KIND(lambda_expr_kind)
+{
+	if (lambda_expr_kind == self->kind) {
+		struct lambda_expr * this = as_lambda_expr(self);
+		TRACE(fprintf(stderr, "%p(lambda_expr_kind, %p, %p)\n", this, this->name, this->expr));
+		OOP cmd = take_arg();
+		TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
+		if (cmd == s_eval) {
+			OOP env = take_arg();
+			TRACE(fprintf(stderr, "  %p: eval {env:%p}\n", self, env));
+			OOP oper = thunk_expr_new(env, this->name, this->expr);
+			TRACE(fprintf(stderr, "  %p: oper=%p\n", self, oper));
+			return appl_expr_new(oper);
+		}
+	}
+	return o_undef;
+}
+OOP
+lambda_expr_new(OOP name, OOP expr)
+{
+	struct lambda_expr * this = object_alloc(struct lambda_expr, lambda_expr_kind);
+	this->name = name;
+	this->expr = expr;
+	return (OOP)this;
+}
+
+struct oper_expr {
+	struct object	o;
+	OOP				env;		// static environment
+	OOP				name;		// formal parameter name
+	OOP				evar;		// environment variable name
+	OOP				expr;		// body expression
+};
+#define	as_oper_expr(oop)	((struct oper_expr *)(oop))
+KIND(oper_expr_kind)
+{
+	if (oper_expr_kind == self->kind) {
+		struct oper_expr * this = as_oper_expr(self);
+		TRACE(fprintf(stderr, "%p(oper_expr_kind, %p, %p, %p, %p)\n", this, this->env, this->name, this->evar, this->expr));
+		OOP cmd = take_arg();
+		TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
+		if (cmd == s_eval) {
+			OOP env = take_arg();
+			TRACE(fprintf(stderr, "  %p: eval {env:%p}\n", self, env));
+			return self;  // operatives evaluate to themselves
+		} else if (cmd == s_combine) {
+			OOP opnd = take_arg();
+			OOP env = take_arg();		// dynamic environment
+			TRACE(fprintf(stderr, "  %p: combine {opnd:%p env:%p}\n", self, opnd, env));
+			OOP env1 = object_call(this->env, s_bind, this->name, opnd);  // extend static environment
+			TRACE(fprintf(stderr, "  %p: env1=%p\n", self, env1));
+			OOP env2 = object_call(env1, s_bind, this->evar, env);  // bind dynamic environment
+			TRACE(fprintf(stderr, "  %p: env2=%p\n", self, env2));
+			return object_call(this->expr, s_eval, env2);  // evaluate body in extended environment
+		}
+	}
+	return o_undef;
+}
+OOP
+oper_expr_new(OOP env, OOP name, OOP evar, OOP expr)
+{
+	struct oper_expr * this = object_alloc(struct oper_expr, oper_expr_kind);
+	this->env = env;
+	this->name = name;
+	this->evar = evar;
+	this->expr = expr;
+	return (OOP)this;
+}
 
 /*
 actor:
@@ -1487,11 +1695,25 @@ run_tests()
 	result = object_call(q_oop, s_empty_p);
 	assert(o_true == result);
 
+	TRACE(fprintf(stderr, "s_eval = %p\n", s_eval));
+	TRACE(fprintf(stderr, "s_combine = %p\n", s_combine));
+//struct object const_42_expr = { const_expr_kind };
+//#define	expr_const_42	(&const_42_expr)
+	OOP expr_const_42 = object_alloc(struct object, const_expr_kind);
+	TRACE(fprintf(stderr, "expr_const_42 = %p\n", expr_const_42));
+	OOP expr_ident_x = ident_expr_new(s_x);
+	TRACE(fprintf(stderr, "expr_ident_x = %p\n", expr_ident_x));
+	OOP expr_example = combine_expr_new(
+		lambda_expr_new(s_x, expr_ident_x),
+		expr_const_42);
+	result = object_call(expr_example, s_eval, o_empty_dict);
+	TRACE(fprintf(stderr, "result = %p\n", result));
+	assert(expr_const_42 == result);
+
 	TRACE(fprintf(stderr, "s_create_x = %p\n", s_create_x));
 	TRACE(fprintf(stderr, "s_send_x = %p\n", s_send_x));
 	TRACE(fprintf(stderr, "s_become_x = %p\n", s_become_x));
 	TRACE(fprintf(stderr, "s_dispatch_x = %p\n", s_dispatch_x));
-
 	OOP cfg = config_new();
 	// dispatch empty queue
 	result = object_call(cfg, s_dispatch_x, n_0);
