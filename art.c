@@ -1375,6 +1375,34 @@ oper_expr_new(OOP env, OOP ptrn, OOP evar, OOP expr)
 	return (OOP)this;
 }
 
+struct quote_expr {		// FIXME: this is deprecated, but temporarily used for testing
+	struct object	o;
+	OOP				value;		// literal value
+};
+#define	as_quote_expr(oop)	((struct quote_expr *)(oop))
+KIND(quote_expr_kind)
+{
+	if (quote_expr_kind == self->kind) {
+		struct quote_expr * this = as_quote_expr(self);
+		TRACE(fprintf(stderr, "%p(quote_expr_kind, %p)\n", this, this->value));
+		OOP cmd = take_arg();
+		TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
+		if (cmd == s_eval) {
+			OOP env = take_arg();
+			TRACE(fprintf(stderr, "  %p: eval {env:%p}\n", self, env));
+			return this->value;
+		}
+	}
+	return o_undef;
+}
+OOP
+quote_expr_new(OOP value)
+{
+	struct quote_expr * this = object_alloc(struct quote_expr, quote_expr_kind);
+	this->value = value;
+	return (OOP)this;
+}
+
 /*
 actor:
 	Actors encapsulate state/behavior reacting to asynchronous events (messages).
@@ -1757,8 +1785,10 @@ run_tests()
 	result = object_call(q_oop, s_empty_p);
 	assert(o_true == result);
 
+	TRACE(fprintf(stderr, "---- expression evaluation ----\n"));
 	TRACE(fprintf(stderr, "s_eval = %p\n", s_eval));
 	TRACE(fprintf(stderr, "s_combine = %p\n", s_combine));
+	// (\x.x)(42) -> 42
 //struct object const_42_expr = { const_expr_kind };
 //#define	expr_const_42	(&const_42_expr)
 	OOP expr_const_42 = object_alloc(struct object, const_expr_kind);
@@ -1771,7 +1801,27 @@ run_tests()
 	result = object_call(expr_example, s_eval, o_empty_dict);
 	TRACE(fprintf(stderr, "result = %p\n", result));
 	assert(expr_const_42 == result);
+	// (\[x, y].y)([0, 1]) -> 1
+	// (($lambda (x y) y) ($quote (0 1))) -> 1
+	// (($lambda (x y) y) (list 0 1))) -> 1
+	TRACE(fprintf(stderr, "n_0 = %p\n", n_0));
+	TRACE(fprintf(stderr, "n_1 = %p\n", n_1));
+	OOP ptrn_parm_x_y = and_pattern_new(
+		bind_pattern_new(s_x, ptrn_any),
+		and_pattern_new(
+			bind_pattern_new(s_y, ptrn_any),
+			ptrn_end));
+	OOP list_0_1 = pair_new(n_0, pair_new(n_1, o_nil));
+	expr_example = combine_expr_new(
+		lambda_expr_new(
+			ptrn_parm_x_y, 
+			ident_expr_new(s_y)),
+		quote_expr_new(list_0_1));
+	result = object_call(expr_example, s_eval, o_empty_dict);
+	TRACE(fprintf(stderr, "result = %p\n", result));
+	assert(n_1 == result);
 
+	TRACE(fprintf(stderr, "---- actor primitives ----\n"));
 	TRACE(fprintf(stderr, "s_create_x = %p\n", s_create_x));
 	TRACE(fprintf(stderr, "s_send_x = %p\n", s_send_x));
 	TRACE(fprintf(stderr, "s_become_x = %p\n", s_become_x));
