@@ -49,7 +49,14 @@ match_new(OOP in, OOP env, OOP out)
 
 KIND(match_kind)
 {
-	/* no object protocol */
+	OOP cmd = take_arg();
+	if (cmd == s_eq_p) {
+		OOP other = take_arg();
+		if (other == self) {  // compare identities
+			return o_true;
+		}
+		return o_false;
+	}
 	return o_undef;
 }
 
@@ -63,54 +70,66 @@ pattern:
 struct symbol match_symbol = { { symbol_kind }, "match" };
 
 /* LET fail = \in.(#fail, in) */
-KIND(fail_pattern_kind)
+static KIND(fail_pattern_kind)
 {
-	if (fail_pattern_kind == self->kind) {
-		TRACE(fprintf(stderr, "%p(fail_pattern_kind)\n", self));
-		OOP cmd = take_arg();
-		TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
-		if (cmd == s_match) {
-			OOP match = take_arg();
-			struct match * mp = as_match(match);
-			TRACE(fprintf(stderr, "  %p: match {in:%p env:%p out:%p}\n", self, mp->in, mp->env, mp->out));
-			return o_fail;
+	TRACE(fprintf(stderr, "%p(fail_pattern_kind)\n", self));
+	OOP cmd = take_arg();
+	TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
+	if (cmd == s_eq_p) {
+		OOP other = take_arg();
+		if (other == self) {  // compare identities
+			return o_true;
 		}
+		return o_false;
+	} else if (cmd == s_match) {
+		OOP match = take_arg();
+		struct match * mp = as_match(match);
+		TRACE(fprintf(stderr, "  %p: match {in:%p env:%p out:%p}\n", self, mp->in, mp->env, mp->out));
+		return o_fail;
 	}
 	return o_undef;
 }
 struct object fail_pattern = { fail_pattern_kind };
 
 /* LET empty = \in.(#ok, (), in) */
-KIND(empty_pattern_kind)
+static KIND(empty_pattern_kind)
 {
-	if (empty_pattern_kind == self->kind) {
-		TRACE(fprintf(stderr, "%p(empty_pattern_kind)\n", self));
-		OOP cmd = take_arg();
-		TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
-		if (cmd == s_match) {
-			OOP match = take_arg();
-			struct match * mp = as_match(match);
-			TRACE(fprintf(stderr, "  %p: match {in:%p env:%p out:%p}\n", self, mp->in, mp->env, mp->out));
-			return match_new(mp->in, mp->env, o_nil);
+	TRACE(fprintf(stderr, "%p(empty_pattern_kind)\n", self));
+	OOP cmd = take_arg();
+	TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
+	if (cmd == s_eq_p) {
+		OOP other = take_arg();
+		if (other == self) {  // compare identities
+			return o_true;
 		}
+		return o_false;
+	} else if (cmd == s_match) {
+		OOP match = take_arg();
+		struct match * mp = as_match(match);
+		TRACE(fprintf(stderr, "  %p: match {in:%p env:%p out:%p}\n", self, mp->in, mp->env, mp->out));
+		return match_new(mp->in, mp->env, o_nil);
 	}
 	return o_undef;
 }
 struct object empty_pattern = { empty_pattern_kind };
 
 /* LET all = \in.(#ok, in, in) */
-KIND(all_pattern_kind)
+static KIND(all_pattern_kind)
 {
-	if (all_pattern_kind == self->kind) {
-		TRACE(fprintf(stderr, "%p(all_pattern_kind)\n", self));
-		OOP cmd = take_arg();
-		TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
-		if (cmd == s_match) {
-			OOP match = take_arg();
-			struct match * mp = as_match(match);
-			TRACE(fprintf(stderr, "  %p: match {in:%p env:%p out:%p}\n", self, mp->in, mp->env, mp->out));
-			return match_new(mp->in, mp->env, mp->in);
+	TRACE(fprintf(stderr, "%p(all_pattern_kind)\n", self));
+	OOP cmd = take_arg();
+	TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
+	if (cmd == s_eq_p) {
+		OOP other = take_arg();
+		if (other == self) {  // compare identities
+			return o_true;
 		}
+		return o_false;
+	} else if (cmd == s_match) {
+		OOP match = take_arg();
+		struct match * mp = as_match(match);
+		TRACE(fprintf(stderr, "  %p: match {in:%p env:%p out:%p}\n", self, mp->in, mp->env, mp->out));
+		return match_new(mp->in, mp->env, mp->in);
 	}
 	return o_undef;
 }
@@ -122,21 +141,25 @@ struct object all_pattern = { all_pattern_kind };
 	_ : (#fail, in)
 	END
 ) */
-KIND(end_pattern_kind)
+static KIND(end_pattern_kind)
 {
-	if (end_pattern_kind == self->kind) {
-		TRACE(fprintf(stderr, "%p(end_pattern_kind)\n", self));
-		OOP cmd = take_arg();
-		TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
-		if (cmd == s_match) {
-			OOP match = take_arg();
-			struct match * mp = as_match(match);
-			TRACE(fprintf(stderr, "  %p: match {in:%p env:%p out:%p}\n", self, mp->in, mp->env, mp->out));
-			if (object_call(mp->in, s_empty_p) == o_true) {
-				return match_new(mp->in, mp->env, o_nil);
-			}
-			return o_fail;
+	TRACE(fprintf(stderr, "%p(end_pattern_kind)\n", self));
+	OOP cmd = take_arg();
+	TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
+	if (cmd == s_eq_p) {
+		OOP other = take_arg();
+		if (other == self) {  // compare identities
+			return o_true;
 		}
+		return o_false;
+	} else if (cmd == s_match) {
+		OOP match = take_arg();
+		struct match * mp = as_match(match);
+		TRACE(fprintf(stderr, "  %p: match {in:%p env:%p out:%p}\n", self, mp->in, mp->env, mp->out));
+		if (object_call(mp->in, s_empty_p) == o_true) {
+			return match_new(mp->in, mp->env, o_nil);
+		}
+		return o_fail;
 	}
 	return o_undef;
 }
@@ -148,22 +171,26 @@ struct object end_pattern = { end_pattern_kind };
 	(token, rest) : (#ok, token, rest)
 	END
 ) */
-KIND(any_pattern_kind)
+static KIND(any_pattern_kind)
 {
-	if (any_pattern_kind == self->kind) {
-		TRACE(fprintf(stderr, "%p(any_pattern_kind)\n", self));
-		OOP cmd = take_arg();
-		TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
-		if (cmd == s_match) {
-			OOP match = take_arg();
-			struct match * mp = as_match(match);
-			TRACE(fprintf(stderr, "  %p: match {in:%p env:%p out:%p}\n", self, mp->in, mp->env, mp->out));
-			if (object_call(mp->in, s_empty_p) == o_false) {
-				struct pair * pp = as_pair(object_call(mp->in, s_pop));
-				return match_new(pp->t, mp->env, pp->h);
-			}
-			return o_fail;
+	TRACE(fprintf(stderr, "%p(any_pattern_kind)\n", self));
+	OOP cmd = take_arg();
+	TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
+	if (cmd == s_eq_p) {
+		OOP other = take_arg();
+		if (other == self) {  // compare identities
+			return o_true;
 		}
+		return o_false;
+	} else if (cmd == s_match) {
+		OOP match = take_arg();
+		struct match * mp = as_match(match);
+		TRACE(fprintf(stderr, "  %p: match {in:%p env:%p out:%p}\n", self, mp->in, mp->env, mp->out));
+		if (object_call(mp->in, s_empty_p) == o_false) {
+			struct pair * pp = as_pair(object_call(mp->in, s_pop));
+			return match_new(pp->t, mp->env, pp->h);
+		}
+		return o_fail;
 	}
 	return o_undef;
 }
@@ -185,23 +212,27 @@ eq_pattern_new(OOP value)
 ) */
 KIND(eq_pattern_kind)
 {
-	if (eq_pattern_kind == self->kind) {
-		struct eq_pattern * this = as_eq_pattern(self);
-		TRACE(fprintf(stderr, "%p(eq_pattern_kind, %p)\n", this, this->value));
-		OOP cmd = take_arg();
-		TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
-		if (cmd == s_match) {
-			OOP match = take_arg();
-			struct match * mp = as_match(match);
-			TRACE(fprintf(stderr, "  %p: match {in:%p env:%p out:%p}\n", self, mp->in, mp->env, mp->out));
-			if (object_call(mp->in, s_empty_p) == o_false) {
-				struct pair * pp = as_pair(object_call(mp->in, s_pop));
-				if (object_call(this->value, s_eq_p, pp->h) == o_true) {
-					return match_new(pp->t, mp->env, pp->h);
-				}
-			}
-			return o_fail;
+	struct eq_pattern * this = as_eq_pattern(self);
+	TRACE(fprintf(stderr, "%p(eq_pattern_kind, %p)\n", this, this->value));
+	OOP cmd = take_arg();
+	TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
+	if (cmd == s_eq_p) {
+		OOP other = take_arg();
+		if (other == self) {  // compare identities
+			return o_true;
 		}
+		return o_false;
+	} else if (cmd == s_match) {
+		OOP match = take_arg();
+		struct match * mp = as_match(match);
+		TRACE(fprintf(stderr, "  %p: match {in:%p env:%p out:%p}\n", self, mp->in, mp->env, mp->out));
+		if (object_call(mp->in, s_empty_p) == o_false) {
+			struct pair * pp = as_pair(object_call(mp->in, s_pop));
+			if (object_call(this->value, s_eq_p, pp->h) == o_true) {
+				return match_new(pp->t, mp->env, pp->h);
+			}
+		}
+		return o_fail;
 	}
 	return o_undef;
 }
@@ -226,23 +257,27 @@ if_pattern_new(OOP test)
 ) */
 KIND(if_pattern_kind)
 {
-	if (if_pattern_kind == self->kind) {
-		struct if_pattern * this = as_if_pattern(self);
-		TRACE(fprintf(stderr, "%p(if_pattern_kind, %p)\n", this, this->test));
-		OOP cmd = take_arg();
-		TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
-		if (cmd == s_match) {
-			OOP match = take_arg();
-			struct match * mp = as_match(match);
-			TRACE(fprintf(stderr, "  %p: match {in:%p env:%p out:%p}\n", self, mp->in, mp->env, mp->out));
-			if (object_call(mp->in, s_empty_p) == o_false) {
-				struct pair * pp = as_pair(object_call(mp->in, s_pop));
-				if (object_call(this->test, pp->h) == o_true) {		// FIXME: IS THIS THE RIGHT PROTOCOL FOR PREDICATE FUNCTIONS?
-					return match_new(pp->t, mp->env, pp->h);
-				}
-			}
-			return o_fail;
+	struct if_pattern * this = as_if_pattern(self);
+	TRACE(fprintf(stderr, "%p(if_pattern_kind, %p)\n", this, this->test));
+	OOP cmd = take_arg();
+	TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
+	if (cmd == s_eq_p) {
+		OOP other = take_arg();
+		if (other == self) {  // compare identities
+			return o_true;
 		}
+		return o_false;
+	} else if (cmd == s_match) {
+		OOP match = take_arg();
+		struct match * mp = as_match(match);
+		TRACE(fprintf(stderr, "  %p: match {in:%p env:%p out:%p}\n", self, mp->in, mp->env, mp->out));
+		if (object_call(mp->in, s_empty_p) == o_false) {
+			struct pair * pp = as_pair(object_call(mp->in, s_pop));
+			if (object_call(this->test, pp->h) == o_true) {		// FIXME: IS THIS THE RIGHT PROTOCOL FOR PREDICATE FUNCTIONS?
+				return match_new(pp->t, mp->env, pp->h);
+			}
+		}
+		return o_fail;
 	}
 	return o_undef;
 }
@@ -263,26 +298,30 @@ or_pattern_new(OOP head, OOP tail)
 ) */
 KIND(or_pattern_kind)
 {
-	if (or_pattern_kind == self->kind) {
-//		struct or_pattern * this = as_or_pattern(self);  -- moved inside loop...
-		TRACE(fprintf(stderr, "%p(or_pattern_kind)\n", self));
-		OOP cmd = take_arg();
-		TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
-		if (cmd == s_match) {
-			OOP match = take_arg();
-			struct match * mp = as_match(match);
-			TRACE(fprintf(stderr, "  %p: match {in:%p env:%p out:%p}\n", self, mp->in, mp->env, mp->out));
-			do {
-				struct or_pattern * this = as_or_pattern(self);
-				TRACE(fprintf(stderr, "%p(or_pattern_kind, %p, %p)\n", this, this->head, this->tail));
-				OOP match1 = object_call(this->head, s_match, match);
-				if (match_kind == match1->kind) {
-					return match1;  // success
-				}
-				self = this->tail;  // simulate tail-recursion
-			} while (or_pattern_kind == self->kind);
-			return object_call(self, s_match, match);
+//	struct or_pattern * this = as_or_pattern(self);  -- moved inside loop...
+	TRACE(fprintf(stderr, "%p(or_pattern_kind)\n", self));
+	OOP cmd = take_arg();
+	TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
+	if (cmd == s_eq_p) {
+		OOP other = take_arg();
+		if (other == self) {  // compare identities
+			return o_true;
 		}
+		return o_false;
+	} else if (cmd == s_match) {
+		OOP match = take_arg();
+		struct match * mp = as_match(match);
+		TRACE(fprintf(stderr, "  %p: match {in:%p env:%p out:%p}\n", self, mp->in, mp->env, mp->out));
+		do {
+			struct or_pattern * this = as_or_pattern(self);
+			TRACE(fprintf(stderr, "%p(or_pattern_kind, %p, %p)\n", this, this->head, this->tail));
+			OOP match1 = object_call(this->head, s_match, match);
+			if (match_kind == match1->kind) {
+				return match1;  // success
+			}
+			self = this->tail;  // simulate tail-recursion
+		} while (or_pattern_kind == self->kind);
+		return object_call(self, s_match, match);
 	}
 	return o_undef;
 }
@@ -308,27 +347,31 @@ and_pattern_new(OOP head, OOP tail)
 ) */
 KIND(and_pattern_kind)
 {
-	if (and_pattern_kind == self->kind) {
-		struct and_pattern * this = as_and_pattern(self);
-		TRACE(fprintf(stderr, "%p(and_pattern_kind, %p, %p)\n", this, this->head, this->tail));
-		OOP cmd = take_arg();
-		TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
-		if (cmd == s_match) {
-			OOP match = take_arg();
-			struct match * mp = as_match(match);
-			TRACE(fprintf(stderr, "  %p: match {in:%p env:%p out:%p}\n", self, mp->in, mp->env, mp->out));
-			OOP match1 = object_call(this->head, s_match, match);
-			if (match_kind == match1->kind) {
-				struct match * mp1 = as_match(match1);
-				OOP match2 = object_call(this->tail, s_match, match1);
-				if (match_kind == match2->kind) {
-					struct match * mp2 = as_match(match2);
-					OOP out = pair_new(mp1->out, mp2->out);
-					return match_new(mp2->in, mp2->env, out);
-				}
-			}
-			return o_fail;
+	struct and_pattern * this = as_and_pattern(self);
+	TRACE(fprintf(stderr, "%p(and_pattern_kind, %p, %p)\n", this, this->head, this->tail));
+	OOP cmd = take_arg();
+	TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
+	if (cmd == s_eq_p) {
+		OOP other = take_arg();
+		if (other == self) {  // compare identities
+			return o_true;
 		}
+		return o_false;
+	} else if (cmd == s_match) {
+		OOP match = take_arg();
+		struct match * mp = as_match(match);
+		TRACE(fprintf(stderr, "  %p: match {in:%p env:%p out:%p}\n", self, mp->in, mp->env, mp->out));
+		OOP match1 = object_call(this->head, s_match, match);
+		if (match_kind == match1->kind) {
+			struct match * mp1 = as_match(match1);
+			OOP match2 = object_call(this->tail, s_match, match1);
+			if (match_kind == match2->kind) {
+				struct match * mp2 = as_match(match2);
+				OOP out = pair_new(mp1->out, mp2->out);
+				return match_new(mp2->in, mp2->env, out);
+			}
+		}
+		return o_fail;
 	}
 	return o_undef;
 }
@@ -349,23 +392,27 @@ bind_pattern_new(OOP name, OOP ptrn)
 ) */
 KIND(bind_pattern_kind)
 {
-	if (bind_pattern_kind == self->kind) {
-		struct bind_pattern * this = as_bind_pattern(self);
-		TRACE(fprintf(stderr, "%p(bind_pattern_kind, %p, %p)\n", this, this->name, this->ptrn));
-		OOP cmd = take_arg();
-		TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
-		if (cmd == s_match) {
-			OOP match = take_arg();
-			struct match * mp = as_match(match);
-			TRACE(fprintf(stderr, "  %p: match {in:%p env:%p out:%p}\n", self, mp->in, mp->env, mp->out));
-			OOP match1 = object_call(this->ptrn, s_match, match);
-			if (match_kind == match1->kind) {
-				struct match * mp1 = as_match(match1);
-				OOP env = object_call(mp1->env, s_bind, this->name, mp1->out);
-				return match_new(mp1->in, env, mp1->out);
-			}
-			return o_fail;
+	struct bind_pattern * this = as_bind_pattern(self);
+	TRACE(fprintf(stderr, "%p(bind_pattern_kind, %p, %p)\n", this, this->name, this->ptrn));
+	OOP cmd = take_arg();
+	TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
+	if (cmd == s_eq_p) {
+		OOP other = take_arg();
+		if (other == self) {  // compare identities
+			return o_true;
 		}
+		return o_false;
+	} else if (cmd == s_match) {
+		OOP match = take_arg();
+		struct match * mp = as_match(match);
+		TRACE(fprintf(stderr, "  %p: match {in:%p env:%p out:%p}\n", self, mp->in, mp->env, mp->out));
+		OOP match1 = object_call(this->ptrn, s_match, match);
+		if (match_kind == match1->kind) {
+			struct match * mp1 = as_match(match1);
+			OOP env = object_call(mp1->env, s_bind, this->name, mp1->out);
+			return match_new(mp1->in, env, mp1->out);
+		}
+		return o_fail;
 	}
 	return o_undef;
 }
@@ -423,15 +470,19 @@ struct object bottom_object = { object_kind };
 
 KIND(const_expr_kind)
 {
-	if (const_expr_kind == self->kind) {
-		TRACE(fprintf(stderr, "%p(const_expr_kind)\n", self));
-		OOP cmd = take_arg();
-		TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
-		if (cmd == s_eval) {
-			OOP env = take_arg();  // constants evaluate to themselves
-			TRACE(fprintf(stderr, "  %p: eval {env:%p}\n", self, env));
-			return self;
+	TRACE(fprintf(stderr, "%p(const_expr_kind)\n", self));
+	OOP cmd = take_arg();
+	TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
+	if (cmd == s_eq_p) {
+		OOP other = take_arg();
+		if (other == self) {  // compare identities
+			return o_true;
 		}
+		return o_false;
+	} else if (cmd == s_eval) {
+		OOP env = take_arg();  // constants evaluate to themselves
+		TRACE(fprintf(stderr, "  %p: eval {env:%p}\n", self, env));
+		return self;
 	}
 	return o_undef;
 }
@@ -445,16 +496,20 @@ ident_expr_new(OOP name)
 }
 KIND(ident_expr_kind)
 {
-	if (ident_expr_kind == self->kind) {
-		struct ident_expr * this = as_ident_expr(self);
-		TRACE(fprintf(stderr, "%p(ident_expr_kind, %p \"%s\")\n", this, this->name, as_symbol(this->name)->s));
-		OOP cmd = take_arg();
-		TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
-		if (cmd == s_eval) {
-			OOP env = take_arg();
-			TRACE(fprintf(stderr, "  %p: eval {env:%p}\n", self, env));
-			return object_call(env, s_lookup, this->name);
+	struct ident_expr * this = as_ident_expr(self);
+	TRACE(fprintf(stderr, "%p(ident_expr_kind, %p \"%s\")\n", this, this->name, as_symbol(this->name)->s));
+	OOP cmd = take_arg();
+	TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
+	if (cmd == s_eq_p) {
+		OOP other = take_arg();
+		if (other == self) {  // compare identities
+			return o_true;
 		}
+		return o_false;
+	} else if (cmd == s_eval) {
+		OOP env = take_arg();
+		TRACE(fprintf(stderr, "  %p: eval {env:%p}\n", self, env));
+		return object_call(env, s_lookup, this->name);
 	}
 	return o_undef;
 }
@@ -469,18 +524,22 @@ combine_expr_new(OOP oper, OOP opnd)
 }
 KIND(combine_expr_kind)
 {
-	if (combine_expr_kind == self->kind) {
-		struct combine_expr * this = as_combine_expr(self);
-		TRACE(fprintf(stderr, "%p(combine_expr_kind, %p, %p)\n", this, this->oper, this->opnd));
-		OOP cmd = take_arg();
-		TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
-		if (cmd == s_eval) {
-			OOP env = take_arg();
-			TRACE(fprintf(stderr, "  %p: eval {env:%p}\n", self, env));
-			OOP comb = object_call(this->oper, s_eval, env);  // evaluate oper (in env) to yield combiner
-			TRACE(fprintf(stderr, "  %p: combiner=%p\n", self, comb));
-			return object_call(comb, s_combine, this->opnd, env);  // send operand to combiner (with env)
+	struct combine_expr * this = as_combine_expr(self);
+	TRACE(fprintf(stderr, "%p(combine_expr_kind, %p, %p)\n", this, this->oper, this->opnd));
+	OOP cmd = take_arg();
+	TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
+	if (cmd == s_eq_p) {
+		OOP other = take_arg();
+		if (other == self) {  // compare identities
+			return o_true;
 		}
+		return o_false;
+	} else if (cmd == s_eval) {
+		OOP env = take_arg();
+		TRACE(fprintf(stderr, "  %p: eval {env:%p}\n", self, env));
+		OOP comb = object_call(this->oper, s_eval, env);  // evaluate oper (in env) to yield combiner
+		TRACE(fprintf(stderr, "  %p: combiner=%p\n", self, comb));
+		return object_call(comb, s_combine, this->opnd, env);  // send operand to combiner (with env)
 	}
 	return o_undef;
 }
@@ -494,23 +553,27 @@ appl_expr_new(OOP comb)
 }
 KIND(appl_expr_kind)
 {
-	if (appl_expr_kind == self->kind) {
-		struct appl_expr * this = as_appl_expr(self);
-		TRACE(fprintf(stderr, "%p(appl_expr_kind, %p)\n", this, this->comb));
-		OOP cmd = take_arg();
-		TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
-		if (cmd == s_eval) {
-			OOP env = take_arg();
-			TRACE(fprintf(stderr, "  %p: eval {env:%p}\n", self, env));
-			return self;  // applicatives evaluate to themselves
-		} else if (cmd == s_combine) {
-			OOP opnd = take_arg();
-			OOP env = take_arg();
-			TRACE(fprintf(stderr, "  %p: combine {opnd:%p env:%p}\n", self, opnd, env));
-			OOP arg = object_call(opnd, s_eval, env);  // evaluate opnd (in env) to yield argument
-			TRACE(fprintf(stderr, "  %p: arg=%p\n", self, arg));
-			return object_call(this->comb, s_combine, arg, env);  // send arg to combiner (with env)
+	struct appl_expr * this = as_appl_expr(self);
+	TRACE(fprintf(stderr, "%p(appl_expr_kind, %p)\n", this, this->comb));
+	OOP cmd = take_arg();
+	TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
+	if (cmd == s_eq_p) {
+		OOP other = take_arg();
+		if (other == self) {  // compare identities
+			return o_true;
 		}
+		return o_false;
+	} else if (cmd == s_eval) {
+		OOP env = take_arg();
+		TRACE(fprintf(stderr, "  %p: eval {env:%p}\n", self, env));
+		return self;  // applicatives evaluate to themselves
+	} else if (cmd == s_combine) {
+		OOP opnd = take_arg();
+		OOP env = take_arg();
+		TRACE(fprintf(stderr, "  %p: combine {opnd:%p env:%p}\n", self, opnd, env));
+		OOP arg = object_call(opnd, s_eval, env);  // evaluate opnd (in env) to yield argument
+		TRACE(fprintf(stderr, "  %p: arg=%p\n", self, arg));
+		return object_call(this->comb, s_combine, arg, env);  // send arg to combiner (with env)
 	}
 	return o_undef;
 }
@@ -526,28 +589,32 @@ thunk_expr_new(OOP env, OOP ptrn, OOP expr)
 }
 KIND(thunk_expr_kind)
 {
-	if (thunk_expr_kind == self->kind) {
-		struct thunk_expr * this = as_thunk_expr(self);
-		TRACE(fprintf(stderr, "%p(thunk_expr_kind, %p, %p, %p)\n", this, this->env, this->ptrn, this->expr));
-		OOP cmd = take_arg();
-		TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
-		if (cmd == s_eval) {
-			OOP env = take_arg();
-			TRACE(fprintf(stderr, "  %p: eval {env:%p}\n", self, env));
-			return self;  // closures evaluate to themselves
-		} else if (cmd == s_combine) {
-			OOP opnd = take_arg();
-			OOP env = take_arg();		// dynamic environment (ignored)
-			TRACE(fprintf(stderr, "  %p: combine {opnd:%p env:%p}\n", self, opnd, env));
-			OOP match = match_new(opnd, this->env, o_undef);
-			match = object_call(this->ptrn, s_match, match);
-			if (match_kind == match->kind) {
-				struct match * mp = as_match(match);
-				TRACE(fprintf(stderr, "  %p: env'=%p\n", self, mp->env));
-				return object_call(this->expr, s_eval, mp->env);  // evaluate body in extended environment
-			}
-			return o_bottom;  // parameter pattern mismatch
+	struct thunk_expr * this = as_thunk_expr(self);
+	TRACE(fprintf(stderr, "%p(thunk_expr_kind, %p, %p, %p)\n", this, this->env, this->ptrn, this->expr));
+	OOP cmd = take_arg();
+	TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
+	if (cmd == s_eq_p) {
+		OOP other = take_arg();
+		if (other == self) {  // compare identities
+			return o_true;
 		}
+		return o_false;
+	} else if (cmd == s_eval) {
+		OOP env = take_arg();
+		TRACE(fprintf(stderr, "  %p: eval {env:%p}\n", self, env));
+		return self;  // closures evaluate to themselves
+	} else if (cmd == s_combine) {
+		OOP opnd = take_arg();
+		OOP denv = take_arg();		// dynamic environment (ignored)
+		TRACE(fprintf(stderr, "  %p: combine {opnd:%p denv:%p}\n", self, opnd, denv));
+		OOP match = match_new(opnd, this->env, o_undef);
+		match = object_call(this->ptrn, s_match, match);
+		if (match_kind == match->kind) {
+			struct match * mp = as_match(match);
+			TRACE(fprintf(stderr, "  %p: env'=%p\n", self, mp->env));
+			return object_call(this->expr, s_eval, mp->env);  // evaluate body in extended environment
+		}
+		return o_bottom;  // parameter pattern mismatch
 	}
 	return o_undef;
 }
@@ -562,18 +629,22 @@ lambda_expr_new(OOP ptrn, OOP expr)
 }
 KIND(lambda_expr_kind)
 {
-	if (lambda_expr_kind == self->kind) {
-		struct lambda_expr * this = as_lambda_expr(self);
-		TRACE(fprintf(stderr, "%p(lambda_expr_kind, %p, %p)\n", this, this->ptrn, this->expr));
-		OOP cmd = take_arg();
-		TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
-		if (cmd == s_eval) {
-			OOP env = take_arg();
-			TRACE(fprintf(stderr, "  %p: eval {env:%p}\n", self, env));
-			OOP oper = thunk_expr_new(env, this->ptrn, this->expr);
-			TRACE(fprintf(stderr, "  %p: oper=%p\n", self, oper));
-			return appl_expr_new(oper);
+	struct lambda_expr * this = as_lambda_expr(self);
+	TRACE(fprintf(stderr, "%p(lambda_expr_kind, %p, %p)\n", this, this->ptrn, this->expr));
+	OOP cmd = take_arg();
+	TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
+	if (cmd == s_eq_p) {
+		OOP other = take_arg();
+		if (other == self) {  // compare identities
+			return o_true;
 		}
+		return o_false;
+	} else if (cmd == s_eval) {
+		OOP env = take_arg();
+		TRACE(fprintf(stderr, "  %p: eval {env:%p}\n", self, env));
+		OOP oper = thunk_expr_new(env, this->ptrn, this->expr);
+		TRACE(fprintf(stderr, "  %p: oper=%p\n", self, oper));
+		return appl_expr_new(oper);
 	}
 	return o_undef;
 }
@@ -590,32 +661,36 @@ oper_expr_new(OOP env, OOP ptrn, OOP evar, OOP expr)
 }
 KIND(oper_expr_kind)
 {
-	if (oper_expr_kind == self->kind) {
-		struct oper_expr * this = as_oper_expr(self);
-		TRACE(fprintf(stderr, "%p(oper_expr_kind, %p, %p, %p, %p)\n", this, this->env, this->ptrn, this->evar, this->expr));
-		OOP cmd = take_arg();
-		TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
-		if (cmd == s_eval) {
-			OOP env = take_arg();
-			TRACE(fprintf(stderr, "  %p: eval {env:%p}\n", self, env));
-			return self;  // operatives evaluate to themselves
-		} else if (cmd == s_combine) {
-			OOP opnd = take_arg();
-			OOP env = take_arg();		// dynamic environment
-			TRACE(fprintf(stderr, "  %p: combine {opnd:%p env:%p}\n", self, opnd, env));
-
-			OOP match = match_new(opnd, this->env, o_undef);
-			match = object_call(this->ptrn, s_match, match);
-			if (match_kind == match->kind) {
-				OOP env1 = as_match(match)->env;
-				TRACE(fprintf(stderr, "  %p: env1=%p\n", self, env1));
-				OOP env2 = object_call(env1, s_bind, this->evar, env);  // bind dynamic environment
-				TRACE(fprintf(stderr, "  %p: env2=%p\n", self, env2));
-				return object_call(this->expr, s_eval, env2);  // evaluate body in extended environment
-			}
-			return o_bottom;  // parameter pattern mismatch
-
+	struct oper_expr * this = as_oper_expr(self);
+	TRACE(fprintf(stderr, "%p(oper_expr_kind, %p, %p, %p, %p)\n", this, this->env, this->ptrn, this->evar, this->expr));
+	OOP cmd = take_arg();
+	TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
+	if (cmd == s_eq_p) {
+		OOP other = take_arg();
+		if (other == self) {  // compare identities
+			return o_true;
 		}
+		return o_false;
+	} else if (cmd == s_eval) {
+		OOP env = take_arg();
+		TRACE(fprintf(stderr, "  %p: eval {env:%p}\n", self, env));
+		return self;  // operatives evaluate to themselves
+	} else if (cmd == s_combine) {
+		OOP opnd = take_arg();
+		OOP denv = take_arg();		// dynamic environment
+		TRACE(fprintf(stderr, "  %p: combine {opnd:%p denv:%p}\n", self, opnd, denv));
+		OOP match = match_new(opnd, this->env, o_undef);
+		match = object_call(this->ptrn, s_match, match);
+		if (match_kind == match->kind) {
+			OOP env = as_match(match)->env;
+			TRACE(fprintf(stderr, "  %p: env'=%p\n", self, env));
+			if (symbol_kind == this->evar->kind) {
+				env = object_call(env, s_bind, this->evar, denv);  // bind dynamic environment
+				TRACE(fprintf(stderr, "  %p: env''=%p\n", self, env));
+			}
+			return object_call(this->expr, s_eval, env);  // evaluate body in extended environment
+		}
+		return o_bottom;  // parameter pattern mismatch
 	}
 	return o_undef;
 }
@@ -629,16 +704,20 @@ quote_expr_new(OOP value)
 }
 KIND(quote_expr_kind)
 {
-	if (quote_expr_kind == self->kind) {
-		struct quote_expr * this = as_quote_expr(self);
-		TRACE(fprintf(stderr, "%p(quote_expr_kind, %p)\n", this, this->value));
-		OOP cmd = take_arg();
-		TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
-		if (cmd == s_eval) {
-			OOP env = take_arg();
-			TRACE(fprintf(stderr, "  %p: eval {env:%p}\n", self, env));
-			return this->value;
+	struct quote_expr * this = as_quote_expr(self);
+	TRACE(fprintf(stderr, "%p(quote_expr_kind, %p)\n", this, this->value));
+	OOP cmd = take_arg();
+	TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
+	if (cmd == s_eq_p) {
+		OOP other = take_arg();
+		if (other == self) {  // compare identities
+			return o_true;
 		}
+		return o_false;
+	} else if (cmd == s_eval) {
+		OOP env = take_arg();
+		TRACE(fprintf(stderr, "  %p: eval {env:%p}\n", self, env));
+		return this->value;
 	}
 	return o_undef;
 }

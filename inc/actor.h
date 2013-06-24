@@ -72,7 +72,7 @@ extern KIND(event_kind);
  * behavior
  */
 
-extern KIND(empty_beh_kind);
+//extern KIND(empty_beh_kind);
 extern struct object empty_beh;
 #define	beh_empty	((OOP)&empty_beh)
 extern struct actor sink_actor;

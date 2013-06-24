@@ -48,23 +48,23 @@ extern KIND(match_kind);
 extern struct symbol match_symbol;
 #define	s_match	((OOP)&match_symbol)
 
-extern KIND(fail_pattern_kind);
+//extern KIND(fail_pattern_kind);
 extern struct object fail_pattern;
 #define	ptrn_fail	((OOP)&fail_pattern)
 
-extern KIND(empty_pattern_kind);
+//extern KIND(empty_pattern_kind);
 extern struct object empty_pattern;
 #define	ptrn_empty	((OOP)&empty_pattern)
 
-extern KIND(all_pattern_kind);
+//extern KIND(all_pattern_kind);
 extern struct object all_pattern;
 #define	ptrn_all	((OOP)&all_pattern)
 
-extern KIND(end_pattern_kind);
+//extern KIND(end_pattern_kind);
 extern struct object end_pattern;
 #define	ptrn_end	((OOP)&end_pattern)
 
-extern KIND(any_pattern_kind);
+//extern KIND(any_pattern_kind);
 extern struct object any_pattern;
 #define	ptrn_any	((OOP)&any_pattern)
 
