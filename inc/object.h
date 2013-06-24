@@ -34,6 +34,7 @@ THE SOFTWARE.
 typedef struct object * OOP;
 #define KIND(kind) OOP kind(OOP self, va_list args)
 typedef OOP (*DISP)(OOP self, va_list args);
+//#define	DELEGATE(kind) (kind)(self, args) --- FIXME: ARGS CANNOT BE RE-TAKEN!
 
 /*
  * object
@@ -49,10 +50,11 @@ extern OOP		object_call(OOP obj, ...);
 extern OOP		object_new(DISP kind, size_t size);
 #define	object_alloc(structure, kind)	((structure *)object_new((kind), sizeof(structure)))
 
-extern KIND(object_kind);
-
+//extern KIND(undef_kind);
 extern struct object undef_object;
 #define	o_undef	((OOP)&undef_object)
+
+extern KIND(object_kind);
 
 /*
  * symbol
@@ -70,5 +72,8 @@ extern struct symbol _t_symbol;
 #define	o_true	((OOP)&_t_symbol)
 extern struct symbol _f_symbol;
 #define	o_false	((OOP)&_f_symbol)
+
+extern struct symbol eq_p_symbol;
+#define	s_eq_p	((OOP)&eq_p_symbol)
 
 #endif /* _OBJECT_H_ */

@@ -46,7 +46,7 @@ extern struct symbol put_symbol;
 extern struct symbol pull_symbol;
 #define	s_pull	((OOP)&pull_symbol)
 
-extern KIND(nil_kind);
+//extern KIND(nil_kind);
 extern struct object nil_object;
 #define	o_nil	((OOP)&nil_object)
 
@@ -83,7 +83,7 @@ extern struct symbol lookup_symbol;
 extern struct object fail_object;
 #define	o_fail	((OOP)&fail_object)
 
-extern KIND(empty_dict_kind);
+//extern KIND(empty_dict_kind);
 extern struct object empty_dict;
 #define	o_empty_dict	((OOP)&empty_dict)
 
@@ -101,8 +101,6 @@ extern KIND(dict_kind);
  * integer
  */
 
-extern struct symbol eq_p_symbol;
-#define	s_eq_p	((OOP)&eq_p_symbol)
 extern struct symbol add_symbol;
 #define	s_add	((OOP)&add_symbol)
 

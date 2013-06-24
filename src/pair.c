@@ -44,16 +44,20 @@ struct symbol pop_symbol = { { symbol_kind }, "pop" };
 struct symbol put_symbol = { { symbol_kind }, "put" };
 struct symbol pull_symbol = { { symbol_kind }, "pull" };
 
-KIND(nil_kind)
+static KIND(nil_kind)
 {
-	if (nil_kind == self->kind) {
-		OOP cmd = take_arg();
-		if (cmd == s_empty_p) {
+	OOP cmd = take_arg();
+	if (cmd == s_eq_p) {
+		OOP other = take_arg();
+		if (other == self) {  // compare identities
 			return o_true;
-		} else if (cmd == s_push) {
-			OOP x = take_arg();
-			return pair_new(x, self);
 		}
+		return o_false;
+	} else if (cmd == s_empty_p) {
+		return o_true;
+	} else if (cmd == s_push) {
+		OOP x = take_arg();
+		return pair_new(x, self);
 	}
 	return o_undef;
 }
@@ -71,17 +75,21 @@ pair_new(OOP h, OOP t)
 
 KIND(pair_kind)
 {
-	if (pair_kind == self->kind) {
-//		struct pair * this = as_pair(self);
-		OOP cmd = take_arg();
-		if (cmd == s_empty_p) {
-			return o_false;
-		} else if (cmd == s_pop) {
-			return self;
-		} else if (cmd == s_push) {
-			OOP x = take_arg();
-			return pair_new(x, self);
+//	struct pair * this = as_pair(self);
+	OOP cmd = take_arg();
+	if (cmd == s_eq_p) {
+		OOP other = take_arg();
+		if (other == self) {  // compare identities
+			return o_true;
 		}
+		return o_false;
+	} else if (cmd == s_empty_p) {
+		return o_false;
+	} else if (cmd == s_pop) {
+		return self;
+	} else if (cmd == s_push) {
+		OOP x = take_arg();
+		return pair_new(x, self);
 	}
 	return o_undef;
 }
@@ -100,32 +108,36 @@ struct symbol take_x_symbol = { { symbol_kind }, "take!" };
 
 KIND(queue_kind)
 {
-	if (queue_kind == self->kind) {
-		struct pair * this = as_pair(self);
-		OOP cmd = take_arg();
-		if (cmd == s_empty_p) {
-			if (this->h == o_nil) {
-				return o_true;
-			}
-			return o_false;
-		} else if (cmd == s_take_x) {
-			if (this->h != o_nil) {
-				struct pair * entry = as_pair(this->h);
-				this->h = entry->t;
-				OOP item = entry->h;  // entry is garbage after this (use custom free?)
-				return item;
-			}
-		} else if (cmd == s_give_x) {
-			OOP item = take_arg();
-			OOP oop = pair_new(item, o_nil);  // could be a custom allocator
-			if (this->h == o_nil) {
-				this->h = oop;
-			} else {
-				as_pair(this->t)->t = oop;
-			}
-			this->t = oop;
-			return self;
+	struct pair * this = as_pair(self);
+	OOP cmd = take_arg();
+	if (cmd == s_eq_p) {
+		OOP other = take_arg();
+		if (other == self) {  // compare identities
+			return o_true;
 		}
+		return o_false;
+	} else if (cmd == s_empty_p) {
+		if (this->h == o_nil) {
+			return o_true;
+		}
+		return o_false;
+	} else if (cmd == s_take_x) {
+		if (this->h != o_nil) {
+			struct pair * entry = as_pair(this->h);
+			this->h = entry->t;
+			OOP item = entry->h;  // entry is garbage after this (use custom free?)
+			return item;
+		}
+	} else if (cmd == s_give_x) {
+		OOP item = take_arg();
+		OOP oop = pair_new(item, o_nil);  // could be a custom allocator
+		if (this->h == o_nil) {
+			this->h = oop;
+		} else {
+			as_pair(this->t)->t = oop;
+		}
+		this->t = oop;
+		return self;
 	}
 	return o_undef;
 }
@@ -155,22 +167,26 @@ struct symbol lookup_symbol = { { symbol_kind }, "lookup" };
 
 struct object fail_object = { object_kind };
 
-KIND(empty_dict_kind)
+static KIND(empty_dict_kind)
 {
-	if (empty_dict_kind == self->kind) {
-		TRACE(fprintf(stderr, "%p(empty_dict_kind)\n", self));
-		OOP cmd = take_arg();
-		TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
-		if (cmd == s_lookup) {
-			OOP name = take_arg();
-			TRACE(fprintf(stderr, "  %p: name=%p\n", self, name));
-			return o_fail;
-		} else if (cmd == s_bind) {
-			OOP name = take_arg();
-			OOP value = take_arg();
-			TRACE(fprintf(stderr, "  %p: name=%p value=%p\n", self, name, value));
-			return dict_new(name, value, self);
+	TRACE(fprintf(stderr, "%p(empty_dict_kind)\n", self));
+	OOP cmd = take_arg();
+	TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
+	if (cmd == s_eq_p) {
+		OOP other = take_arg();
+		if (other == self) {  // compare identities
+			return o_true;
 		}
+		return o_false;
+	} else if (cmd == s_lookup) {
+		OOP name = take_arg();
+		TRACE(fprintf(stderr, "  %p: name=%p\n", self, name));
+		return o_fail;
+	} else if (cmd == s_bind) {
+		OOP name = take_arg();
+		OOP value = take_arg();
+		TRACE(fprintf(stderr, "  %p: name=%p value=%p\n", self, name, value));
+		return dict_new(name, value, self);
 	}
 	return o_undef;
 }
@@ -189,29 +205,34 @@ dict_new(OOP name, OOP value, OOP next)
 
 KIND(dict_kind)
 {
-	if (dict_kind == self->kind) {
-//		struct dict * this = as_dict(self);  -- moved inside "do" loop...
-		TRACE(fprintf(stderr, "%p(dict_kind)\n", self));
-		OOP cmd = take_arg();
-		TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
-		if (cmd == s_lookup) {
-			OOP name = take_arg();
-			TRACE(fprintf(stderr, "  %p: name=%p\n", self, name));
-			do {
-				struct dict * this = as_dict(self);  // init/update "this"
-				TRACE(fprintf(stderr, "  %p(dict_kind, %p, %p, %p)\n", this, this->name, this->value, this->next));
-				if (name == this->name) {  // NOTE: identity comparison on names
-					return this->value;
-				}
-				self = this->next;  // iterate to simulate tail-recursion
-			} while (dict_kind == self->kind);
-			return object_call(self, s_lookup, name);  // delegate call
-		} else if (cmd == s_bind) {
-			OOP name = take_arg();
-			OOP value = take_arg();
-			TRACE(fprintf(stderr, "  %p: name=%p value=%p\n", self, name, value));
-			return dict_new(name, value, self);
+//	struct dict * this = as_dict(self);  -- moved inside "do" loop...
+	TRACE(fprintf(stderr, "%p(dict_kind)\n", self));
+	OOP cmd = take_arg();
+	TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
+	if (cmd == s_eq_p) {
+		OOP other = take_arg();
+		if (other == self) {  // compare identities
+			return o_true;
 		}
+		return o_false;
+	} else if (cmd == s_lookup) {
+		OOP name = take_arg();
+		TRACE(fprintf(stderr, "  %p: name=%p\n", self, name));
+		do {
+			struct dict * this = as_dict(self);  // init/update "this"
+			TRACE(fprintf(stderr, "  %p(dict_kind, %p, %p, %p)\n", this, this->name, this->value, this->next));
+//			if (name == this->name) {  // NOTE: identity comparison on names
+			if (object_call(this->name, s_eq_p, name) == o_true) {
+				return this->value;
+			}
+			self = this->next;  // iterate to simulate tail-recursion
+		} while (dict_kind == self->kind);
+		return object_call(self, s_lookup, name);  // delegate call
+	} else if (cmd == s_bind) {
+		OOP name = take_arg();
+		OOP value = take_arg();
+		TRACE(fprintf(stderr, "  %p: name=%p value=%p\n", self, name, value));
+		return dict_new(name, value, self);
 	}
 	return o_undef;
 }
@@ -224,7 +245,6 @@ integer:
 	integer := o.add(x)		-- return new integer equal to ('o' + 'x')
 */
 
-struct symbol eq_p_symbol = { { symbol_kind }, "eq?" };
 struct symbol add_symbol = { { symbol_kind }, "add" };
 
 OOP
@@ -237,27 +257,25 @@ integer_new(int value)
 
 KIND(integer_kind)
 {
-	if (integer_kind == self->kind) {
-		struct integer * this = as_integer(self);
-		OOP cmd = take_arg();
-		if (cmd == s_eq_p) {
-			OOP other = take_arg();
-			if (other == self) {  // compare identities
+	struct integer * this = as_integer(self);
+	OOP cmd = take_arg();
+	if (cmd == s_eq_p) {
+		OOP other = take_arg();
+		if (other == self) {  // compare identities
+			return o_true;
+		}
+		if (integer_kind == other->kind) {
+			struct integer * that = as_integer(other);
+			if (that->n == this->n) {  // compare values
 				return o_true;
 			}
-			if (integer_kind == other->kind) {
-				struct integer * that = as_integer(other);
-				if (that->n == this->n) {  // compare values
-					return o_true;
-				}
-			}
-			return o_false;
-		} else if (cmd == s_add) {
-			OOP other = take_arg();
-			if (integer_kind == other->kind) {
-				struct integer * that = as_integer(other);
-				return integer_new(this->n + that->n);
-			}
+		}
+		return o_false;
+	} else if (cmd == s_add) {
+		OOP other = take_arg();
+		if (integer_kind == other->kind) {
+			struct integer * that = as_integer(other);
+			return integer_new(this->n + that->n);
 		}
 	}
 	return o_undef;

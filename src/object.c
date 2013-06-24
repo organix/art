@@ -53,12 +53,25 @@ object_new(DISP kind, size_t size)
 	return self;
 }
 
-KIND(object_kind)
+static KIND(undef_kind)
 {
 	return o_undef;
 }
 
-struct object undef_object = { object_kind };
+struct object undef_object = { undef_kind };
+
+KIND(object_kind)
+{
+	OOP cmd = take_arg();
+	if (cmd == s_eq_p) {
+		OOP other = take_arg();
+		if (other == self) {  // compare identities
+			return o_true;
+		}
+		return o_false;
+	}
+	return o_undef;
+}
 
 /*
 symbol:
@@ -75,12 +88,18 @@ symbol_new(char * name)
 
 KIND(symbol_kind)
 {
-	if (symbol_kind == self->kind) {
-		struct symbol * this = as_symbol(self);
-		/* no object protocol for symbol */
+	OOP cmd = take_arg();
+	if (cmd == s_eq_p) {
+		OOP other = take_arg();
+		if (other == self) {  // compare identities
+			return o_true;
+		}
+		return o_false;
 	}
 	return o_undef;
 }
 
 struct symbol _t_symbol = { { symbol_kind }, "#t" };
 struct symbol _f_symbol = { { symbol_kind }, "#f" };
+
+struct symbol eq_p_symbol = { { symbol_kind }, "eq?" };
