@@ -28,6 +28,7 @@ THE SOFTWARE.
 
 #include <stdio.h>  /* for TRACE */
 #include "actor.h"
+#include "pair.h"
 
 /*
 actor:

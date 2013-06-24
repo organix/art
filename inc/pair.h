@@ -30,7 +30,6 @@ THE SOFTWARE.
 
 #include "art.h"
 #include "object.h"
-#include "symbol.h"
 
 /*
  * pair / stack

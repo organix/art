@@ -28,6 +28,7 @@ THE SOFTWARE.
 
 #include <stdio.h>  /* for TRACE */
 #include "pattern.h"
+#include "pair.h"
 
 /*
 match:

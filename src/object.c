@@ -59,3 +59,28 @@ KIND(object_kind)
 }
 
 struct object undef_object = { object_kind };
+
+/*
+symbol:
+	Symbols are constants with a string representation 's'.
+*/
+
+OOP
+symbol_new(char * name)
+{
+	struct symbol * this = object_alloc(struct symbol, symbol_kind);
+	this->s = name;
+	return (OOP)this;
+}
+
+KIND(symbol_kind)
+{
+	if (symbol_kind == self->kind) {
+		struct symbol * this = as_symbol(self);
+		/* no object protocol for symbol */
+	}
+	return o_undef;
+}
+
+struct symbol _t_symbol = { { symbol_kind }, "#t" };
+struct symbol _f_symbol = { { symbol_kind }, "#f" };

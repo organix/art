@@ -35,6 +35,10 @@ typedef struct object * OOP;
 #define KIND(kind) OOP kind(OOP self, va_list args)
 typedef OOP (*DISP)(OOP self, va_list args);
 
+/*
+ * object
+ */
+
 struct object {
 	DISP			kind;
 };
@@ -49,5 +53,22 @@ extern KIND(object_kind);
 
 extern struct object undef_object;
 #define	o_undef	((OOP)&undef_object)
+
+/*
+ * symbol
+ */
+
+struct symbol {
+	struct object	o;
+	char *			s;
+};
+#define	as_symbol(oop)	((struct symbol *)(oop))
+extern OOP		symbol_new(char * name);
+extern KIND(symbol_kind);
+
+extern struct symbol _t_symbol;
+#define	o_true	((OOP)&_t_symbol)
+extern struct symbol _f_symbol;
+#define	o_false	((OOP)&_f_symbol)
 
 #endif /* _OBJECT_H_ */

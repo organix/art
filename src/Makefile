@@ -8,12 +8,10 @@ LIB=	../lib
 LIBART=	$(LIB)/libart.a
 INCS=	$(INC)/art.h \
 		$(INC)/object.h \
-		$(INC)/symbol.h \
 		$(INC)/pair.h \
 		$(INC)/pattern.h \
 		$(INC)/actor.h
 OBJS=	object.o \
-		symbol.o \
 		pair.o \
 		pattern.o \
 		actor.o
