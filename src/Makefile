@@ -10,10 +10,12 @@ INCS=	$(INC)/art.h \
 		$(INC)/object.h \
 		$(INC)/pair.h \
 		$(INC)/pattern.h \
+		$(INC)/json.h \
 		$(INC)/actor.h
 OBJS=	object.o \
 		pair.o \
 		pattern.o \
+		json.o \
 		actor.o
 
 CFLAGS=	-I$(INC)

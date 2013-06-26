@@ -228,6 +228,10 @@ KIND(eq_pattern_kind)
 		TRACE(fprintf(stderr, "  %p: match {in:%p env:%p out:%p}\n", self, mp->in, mp->env, mp->out));
 		if (object_call(mp->in, s_empty_p) == o_false) {
 			struct pair * pp = as_pair(object_call(mp->in, s_pop));
+            if (integer_kind == pp->h->kind) {  // FIXME: REMOVE DEBUGGING OUTPUT
+                int ch = as_integer(pp->h)->n;
+                TRACE(fprintf(stderr, "  %p: ch@%p #%d '%c'\n", self, pp->h, ch, ch));
+            }
 			if (object_call(this->value, s_eq_p, pp->h) == o_true) {
 				return match_new(pp->t, mp->env, pp->h);
 			}
@@ -273,6 +277,10 @@ KIND(if_pattern_kind)
 		TRACE(fprintf(stderr, "  %p: match {in:%p env:%p out:%p}\n", self, mp->in, mp->env, mp->out));
 		if (object_call(mp->in, s_empty_p) == o_false) {
 			struct pair * pp = as_pair(object_call(mp->in, s_pop));
+            if (integer_kind == pp->h->kind) {  // FIXME: REMOVE DEBUGGING OUTPUT
+                int ch = as_integer(pp->h)->n;
+                TRACE(fprintf(stderr, "  %p: ch@%p #%d '%c'\n", self, pp->h, ch, ch));
+            }
 			if (object_call(this->test, pp->h) == o_true) {		// FIXME: IS THIS THE RIGHT PROTOCOL FOR PREDICATE FUNCTIONS?
 				return match_new(pp->t, mp->env, pp->h);
 			}
@@ -280,6 +288,55 @@ KIND(if_pattern_kind)
 		return o_fail;
 	}
 	return o_undef;
+}
+
+OOP
+charset_p_new(char * set)
+{
+	struct charset_p * this = object_alloc(struct charset_p, charset_p_kind);
+	this->s = set;
+	return (OOP)this;
+}
+KIND(charset_p_kind)
+{
+	struct charset_p * this = as_charset_p(self);
+	OOP cmd = take_arg();
+	if (cmd == s_eq_p) {
+		OOP other = take_arg();
+		if (other == self) {  // compare identities
+			return o_true;
+		}
+		return o_false;
+	} else if (integer_kind == cmd->kind) {		// FIXME: IS THIS THE RIGHT PROTOCOL FOR PREDICATE FUNCTIONS?
+		char * s;
+		int c = as_integer(cmd)->n;
+		for (s = this->s; *s; ++s) {
+			if (c == *s) {
+				return o_true;
+			}
+		}
+		return o_false;
+	}
+	return o_undef;
+}
+
+OOP
+exclset_p_new(char * excl)
+{
+	struct charset_p * this = object_alloc(struct charset_p, exclset_p_kind);
+	this->s = excl;
+	return (OOP)this;
+}
+KIND(exclset_p_kind)
+{
+    OOP result = charset_p_kind(self, args);  // delegate without consuming any arguments
+    if (o_true == result) {
+        return o_false;
+    }
+    if (o_false == result) {
+        return o_true;
+    }
+    return o_undef;
 }
 
 OOP
@@ -441,10 +498,53 @@ grammar = any '#' digits
 ) */
 
 /* LET opt(match) = or(match, empty) */
+OOP
+opt_pattern_new(OOP ptrn)
+{
+	return or_pattern_new(ptrn, ptrn_empty);
+}
 
 /* LET star(match) = \in.((opt(and(match, star(match))))(in)) */
+OOP
+star_pattern_new(OOP ptrn)
+{
+	struct ref_pattern * this = object_alloc(struct ref_pattern, star_pattern_kind);
+	this->ptrn = ptrn;
+	return (OOP)this;
+}
+KIND(star_pattern_kind)
+{
+	struct ref_pattern * this = as_ref_pattern(self);
+	TRACE(fprintf(stderr, "%p(star_pattern_kind, %p)\n", this, this->ptrn));
+	OOP cmd = take_arg();
+	TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
+	if (cmd == s_eq_p) {
+		OOP other = take_arg();
+		if (other == self) {  // compare identities
+			return o_true;
+		}
+		return o_false;
+	} else if (cmd == s_match) {
+		OOP match = take_arg();
+		for(;;) {
+			struct match * mp = as_match(match);
+			TRACE(fprintf(stderr, "  %p: match {in:%p env:%p out:%p}\n", self, mp->in, mp->env, mp->out));
+			OOP match1 = object_call(this->ptrn, s_match, match);
+			if (match_kind != match1->kind) {
+				return match;  // previous success
+			}
+			match = match1;  // advance match state
+		}
+	}
+	return o_undef;
+}
 
 /* LET plus(match) = and(match, star(match)) */
+OOP
+plus_pattern_new(OOP ptrn)
+{
+	return and_pattern_new(ptrn, star_pattern_new(ptrn));
+}
 
 /* LET not(match) = \in.(
 	CASE match(in) OF

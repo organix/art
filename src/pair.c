@@ -106,6 +106,15 @@ queue:
 struct symbol give_x_symbol = { { symbol_kind }, "give!" };
 struct symbol take_x_symbol = { { symbol_kind }, "take!" };
 
+OOP
+queue_new()
+{
+	struct pair * this = object_alloc(struct pair, queue_kind);
+	this->h = o_nil;
+	this->t = o_nil;
+	return (OOP)this;
+}
+
 KIND(queue_kind)
 {
 	struct pair * this = as_pair(self);
@@ -142,15 +151,6 @@ KIND(queue_kind)
 	return o_undef;
 }
 
-OOP
-queue_new()
-{
-	struct pair * this = object_alloc(struct pair, queue_kind);
-	this->h = o_nil;
-	this->t = o_nil;
-	return (OOP)this;
-}
-
 /*
 dict:
 	Dictionaries define mappings from names to values.
@@ -180,12 +180,14 @@ static KIND(empty_dict_kind)
 		return o_false;
 	} else if (cmd == s_lookup) {
 		OOP name = take_arg();
-		TRACE(fprintf(stderr, "  %p: name=%p\n", self, name));
+//		TRACE(fprintf(stderr, "  %p: name=%p\n", self, name));
+		TRACE(fprintf(stderr, "  %p: name=%p \"%s\"\n", self, name, as_symbol(name)->s));
 		return o_fail;
 	} else if (cmd == s_bind) {
 		OOP name = take_arg();
 		OOP value = take_arg();
-		TRACE(fprintf(stderr, "  %p: name=%p value=%p\n", self, name, value));
+//		TRACE(fprintf(stderr, "  %p: name=%p value=%p\n", self, name, value));
+		TRACE(fprintf(stderr, "  %p: name=%p \"%s\" value=%p\n", self, name, as_symbol(name)->s, value));
 		return dict_new(name, value, self);
 	}
 	return o_undef;
@@ -217,7 +219,7 @@ KIND(dict_kind)
 		return o_false;
 	} else if (cmd == s_lookup) {
 		OOP name = take_arg();
-		TRACE(fprintf(stderr, "  %p: name=%p\n", self, name));
+		TRACE(fprintf(stderr, "  %p: name=%p \"%s\"\n", self, name, as_symbol(name)->s));
 		do {
 			struct dict * this = as_dict(self);  // init/update "this"
 			TRACE(fprintf(stderr, "  %p(dict_kind, %p, %p, %p)\n", this, this->name, this->value, this->next));
@@ -231,7 +233,7 @@ KIND(dict_kind)
 	} else if (cmd == s_bind) {
 		OOP name = take_arg();
 		OOP value = take_arg();
-		TRACE(fprintf(stderr, "  %p: name=%p value=%p\n", self, name, value));
+		TRACE(fprintf(stderr, "  %p: name=%p \"%s\" value=%p\n", self, name, as_symbol(name)->s, value));
 		return dict_new(name, value, self);
 	}
 	return o_undef;

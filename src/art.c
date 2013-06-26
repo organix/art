@@ -34,6 +34,7 @@ THE SOFTWARE.
 #include "pair.h"
 #include "pattern.h"
 #include "actor.h"
+#include "json.h"
 
 #undef	_ENABLE_FINGER_TREE_	/**/
 
@@ -508,6 +509,18 @@ run_tests()
 	result = object_call(cfg, s_dispatch_x, n_5);
 	TRACE(fprintf(stderr, "result = %p\n", result));
 	assert(o_true == object_call(result, s_eq_p, n_0));
+    
+	TRACE(fprintf(stderr, "---- json parser ----\n"));
+    OOP g_json = json_grammar_new();
+	TRACE(fprintf(stderr, "g_json = %p\n", g_json));
+//    OOP s_src = string_stream_new("null");
+    OOP s_src = string_stream_new(" [0, {\"N\":42}, true]\n");
+	TRACE(fprintf(stderr, "s_src = %p\n", s_src));    
+    OOP match = match_new(s_src, o_empty_dict, o_undef);
+	TRACE(fprintf(stderr, "match = %p\n", match));
+	match = object_call(g_json, s_match, match);
+	TRACE(fprintf(stderr, "match' = %p\n", match));
+	assert(match_kind == match->kind);
 }
 
 /*

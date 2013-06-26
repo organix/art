@@ -1,6 +1,6 @@
 /*
 
-object.h -- Actor Run-Time
+json.h -- Actor Run-Time
 
 "MIT License"
 
@@ -25,55 +25,59 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 */
-#ifndef _OBJECT_H_
-#define _OBJECT_H_
+#ifndef _JSON_H_
+#define _JSON_H_
 
 #include "art.h"
-#include <stdarg.h>
-
-typedef struct object * OOP;
-#define KIND(kind) OOP kind(OOP self, va_list args)
-typedef OOP (*DISP)(OOP self, va_list args);
-//#define    DELEGATE(kind) (kind)(self, args) --- FIXME: ARGS CANNOT BE RE-TAKEN!
+#include "object.h"
+#include "pair.h"
 
 /*
- * object
+ * scope
  */
 
-struct object {
-    DISP            kind;
-};
+#define    o_empty_scope    (o_empty_dict)
 
-#define take_arg()  va_arg(args, OOP)
-
-extern OOP      object_call(OOP obj, ...);
-extern OOP      object_new(DISP kind, size_t size);
-#define    object_alloc(structure, kind)    ((structure *)object_new((kind), sizeof(structure)))
-
-//extern KIND(undef_kind);
-extern struct object undef_object;
-#define o_undef     ((OOP)&undef_object)
-
-extern KIND(object_kind);
-
-/*
- * symbol
- */
-
-struct symbol {
+struct scope {
     struct object   o;
-    char *          s;
+    OOP             dict;
+    OOP             next;
 };
-#define as_symbol(oop)      ((struct symbol *)(oop))
-extern OOP      symbol_new(char * name);
-extern KIND(symbol_kind);
+#define as_scope(oop)   ((struct scope *)(oop))
+extern OOP scope_new(OOP next);
+extern KIND(scope_kind);
 
-extern struct symbol _t_symbol;
-#define o_true      ((OOP)&_t_symbol)
-extern struct symbol _f_symbol;
-#define o_false     ((OOP)&_f_symbol)
+/*
+ * pattern
+ */
 
-extern struct symbol eq_p_symbol;
-#define s_eq_p      ((OOP)&eq_p_symbol)
+struct named_pattern {
+    struct object   o;
+    OOP             name;        // symbol to lookup
+    OOP             scope;        // scope to search
+};
+#define as_named_pattern(oop)   ((struct named_pattern *)(oop))
+extern OOP named_pattern_new(OOP name, OOP scope);
+extern KIND(named_pattern_kind);
 
-#endif /* _OBJECT_H_ */
+/*
+ * stream
+ */
+
+#define    o_empty_stream    (o_nil)
+
+struct string_stream {
+	struct object	o;
+	char *			s;
+};
+#define	as_string_stream(oop)	((struct string_stream *)(oop))
+extern OOP		string_stream_new(char * s);
+extern KIND(string_stream_kind);
+
+/*
+ * grammar
+ */
+ 
+extern OOP json_grammar_new();
+
+#endif /* _JSON_H_ */

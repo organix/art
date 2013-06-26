@@ -84,6 +84,16 @@ struct if_pattern {
 extern OOP		if_pattern_new(OOP test);
 extern KIND(if_pattern_kind);
 
+struct charset_p {
+	struct object	o;
+	char *			s;
+};
+#define	as_charset_p(oop)	((struct charset_p *)(oop))
+extern OOP		charset_p_new(char * set);
+extern KIND(charset_p_kind);
+extern OOP		exclset_p_new(char * excl);
+extern KIND(exclset_p_kind);
+
 struct or_pattern {
 	struct object	o;
 	OOP				head;		// first pattern
@@ -110,6 +120,16 @@ struct bind_pattern {
 #define	as_bind_pattern(oop)	((struct bind_pattern *)(oop))
 extern OOP		bind_pattern_new(OOP name, OOP ptrn);
 extern KIND(bind_pattern_kind);
+
+struct ref_pattern {
+	struct object	o;
+	OOP				ptrn;		// pattern reference
+};
+#define	as_ref_pattern(oop)	((struct ref_pattern *)(oop))
+extern OOP		opt_pattern_new(OOP ptrn);  // 0 or 1
+extern OOP		star_pattern_new(OOP ptrn);  // 0 or more
+extern KIND(star_pattern_kind);
+extern OOP		plus_pattern_new(OOP ptrn);  // 1 or more
 
 /*
  * expression

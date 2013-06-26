@@ -31,72 +31,72 @@ THE SOFTWARE.
 
 /*
 object:
-	Object is the root kind, containing just a polymorphic dispatch procedure.
+    Object is the root kind, containing just a polymorphic dispatch procedure.
 */
 
 OOP
 object_call(OOP obj, ...)
 {
-	va_list args;
+    va_list args;
 
-	va_start(args, obj);
-	OOP result = (obj->kind)(obj, args);
-	va_end(args);
-	return result;
+    va_start(args, obj);
+    OOP result = (obj->kind)(obj, args);
+    va_end(args);
+    return result;
 }
 
 OOP
 object_new(DISP kind, size_t size)
 {
-	OOP self = (OOP)ALLOC(size);
-	self->kind = kind;
-	return self;
+    OOP self = (OOP)ALLOC(size);
+    self->kind = kind;
+    return self;
 }
 
 static KIND(undef_kind)
 {
-	return o_undef;
+    return o_undef;
 }
 
 struct object undef_object = { undef_kind };
 
 KIND(object_kind)
 {
-	OOP cmd = take_arg();
-	if (cmd == s_eq_p) {
-		OOP other = take_arg();
-		if (other == self) {  // compare identities
-			return o_true;
-		}
-		return o_false;
-	}
-	return o_undef;
+    OOP cmd = take_arg();
+    if (cmd == s_eq_p) {
+        OOP other = take_arg();
+        if (other == self) {  // compare identities
+            return o_true;
+        }
+        return o_false;
+    }
+    return o_undef;
 }
 
 /*
 symbol:
-	Symbols are constants with a string representation 's'.
+    Symbols are constants with a string representation 's'.
 */
 
 OOP
 symbol_new(char * name)
 {
-	struct symbol * this = object_alloc(struct symbol, symbol_kind);
-	this->s = name;
-	return (OOP)this;
+    struct symbol * this = object_alloc(struct symbol, symbol_kind);
+    this->s = name;
+    return (OOP)this;
 }
 
 KIND(symbol_kind)
 {
-	OOP cmd = take_arg();
-	if (cmd == s_eq_p) {
-		OOP other = take_arg();
-		if (other == self) {  // compare identities
-			return o_true;
-		}
-		return o_false;
-	}
-	return o_undef;
+    OOP cmd = take_arg();
+    if (cmd == s_eq_p) {
+        OOP other = take_arg();
+        if (other == self) {  // compare identities
+            return o_true;
+        }
+        return o_false;
+    }
+    return o_undef;
 }
 
 struct symbol _t_symbol = { { symbol_kind }, "#t" };
