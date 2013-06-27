@@ -31,11 +31,11 @@ THE SOFTWARE.
 #include <stddef.h>
 #include <stdlib.h>
 
-#define	TRACE(x)	x		/* enable/disable trace statements */
-#define	DEBUG(x)			/* enable/disable debug statements */
+#define TRACE(x)    x   /* enable/disable trace statements */
+#define DEBUG(x)        /* enable/disable debug statements */
 
-#define	ALLOC(S)	(calloc((S), 1))
-#define	NEW(T)		((T *)calloc(sizeof(T), 1))
-#define	FREE(p)		((p) = (free(p), NULL))
+#define ALLOC(S)    (calloc((S), 1))
+#define NEW(T)      ((T *)calloc(sizeof(T), 1))
+#define FREE(p)     ((p) = (free(p), NULL))
 
 #endif /* _ART_H_ */

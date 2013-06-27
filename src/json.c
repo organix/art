@@ -53,21 +53,21 @@ _          = [ \t\n\r\b\f]*
 */
 
 static struct symbol json_symbol = { { symbol_kind }, "json" };
-#define    s_json    ((OOP)&json_symbol)
+#define s_json ((OOP)&json_symbol)
 static struct symbol value_symbol = { { symbol_kind }, "value" };
-#define    s_value    ((OOP)&value_symbol)
+#define s_value ((OOP)&value_symbol)
 static struct symbol object_symbol = { { symbol_kind }, "object" };
-#define    s_object    ((OOP)&object_symbol)
+#define s_object ((OOP)&object_symbol)
 static struct symbol array_symbol = { { symbol_kind }, "array" };
-#define    s_array    ((OOP)&array_symbol)
+#define s_array ((OOP)&array_symbol)
 static struct symbol string_symbol = { { symbol_kind }, "string" };
-#define    s_string    ((OOP)&string_symbol)
+#define s_string ((OOP)&string_symbol)
 static struct symbol number_symbol = { { symbol_kind }, "number" };
-#define    s_number    ((OOP)&number_symbol)
+#define s_number ((OOP)&number_symbol)
 static struct symbol name_symbol = { { symbol_kind }, "name" };
-#define    s_name    ((OOP)&name_symbol)
+#define s_name ((OOP)&name_symbol)
 static struct symbol ws_symbol = { { symbol_kind }, "ws" };
-#define    s_ws    ((OOP)&ws_symbol)
+#define s_ws ((OOP)&ws_symbol)
 
 /*
 scope:
@@ -76,8 +76,8 @@ scope:
     In this implementation, each node holds a dictionary of 'name'/'value' pairs.
     The 'next' pointer delegates to a linear chain of scopes.
 
-    x := o.lookup(name)        -- return value 'x' bound to 'name', or 'o_fail'
-    o.bind(name, x)            -- bind 'name' to 'x' in this scope
+    x := o.lookup(name)         -- return value 'x' bound to 'name', or 'o_fail'
+    o.bind(name, x)             -- bind 'name' to 'x' in this scope
 */
 
 OOP
@@ -102,7 +102,7 @@ KIND(scope_kind)
         return o_false;
     } else if (cmd == s_lookup) {
         OOP name = take_arg();
-		TRACE(fprintf(stderr, "  %p: name=%p \"%s\"\n", self, name, as_symbol(name)->s));
+        TRACE(fprintf(stderr, "  %p: name=%p \"%s\"\n", self, name, as_symbol(name)->s));
         OOP result = object_call(this->dict, s_lookup, name);
         if (result == o_fail) {
             return object_call(this->next, s_lookup, name);  // delegate call
@@ -111,7 +111,7 @@ KIND(scope_kind)
     } else if (cmd == s_bind) {
         OOP name = take_arg();
         OOP value = take_arg();
-		TRACE(fprintf(stderr, "  %p: name=%p \"%s\" value=%p\n", self, name, as_symbol(name)->s, value));
+        TRACE(fprintf(stderr, "  %p: name=%p \"%s\" value=%p\n", self, name, as_symbol(name)->s, value));
         this->dict = object_call(this->dict, s_bind, name, value);
         return self;
     }
@@ -163,33 +163,33 @@ string_stream_new(char * s)
     if ((s == NULL) || (*s == '\0')) {
         return o_empty_stream;
     }
-	struct string_stream * this = object_alloc(struct string_stream, string_stream_kind);
-	this->s = s;
-	return (OOP)this;
+    struct string_stream * this = object_alloc(struct string_stream, string_stream_kind);
+    this->s = s;
+    return (OOP)this;
 }
 KIND(string_stream_kind)
 {
-	struct string_stream * this = as_string_stream(self);
+    struct string_stream * this = as_string_stream(self);
     TRACE(fprintf(stderr, "%p(string_stream_kind, %p)\n", this, this->s));
-	OOP cmd = take_arg();
+    OOP cmd = take_arg();
     TRACE(fprintf(stderr, "  %p: cmd=%p \"%s\"\n", self, cmd, as_symbol(cmd)->s));
-	if (cmd == s_eq_p) {
-		OOP other = take_arg();
-		if (other == self) {  // compare identities
-			return o_true;
-		}
-		return o_false;
-	} else if (cmd == s_empty_p) {
-		return o_false;
-	} else if (cmd == s_pop) {
-		char * s = this->s;
+    if (cmd == s_eq_p) {
+        OOP other = take_arg();
+        if (other == self) {  // compare identities
+            return o_true;
+        }
+        return o_false;
+    } else if (cmd == s_empty_p) {
+        return o_false;
+    } else if (cmd == s_pop) {
+        char * s = this->s;
         OOP n_ch = integer_new(*s);
         OOP next = string_stream_new(++s);
         int ch = as_integer(n_ch)->n;
         TRACE(fprintf(stderr, "  %p: ch@%p #%d '%c'\n", self, n_ch, ch, ch));
-		return pair_new(n_ch, next);
-	}
-	return o_undef;
+        return pair_new(n_ch, next);
+    }
+    return o_undef;
 }
 
 

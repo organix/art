@@ -36,27 +36,27 @@ THE SOFTWARE.
  */
 
 extern struct symbol empty_p_symbol;
-#define	s_empty_p	((OOP)&empty_p_symbol)
+#define s_empty_p ((OOP)&empty_p_symbol)
 extern struct symbol push_symbol;
-#define	s_push	((OOP)&push_symbol)
+#define s_push ((OOP)&push_symbol)
 extern struct symbol pop_symbol;
-#define	s_pop	((OOP)&pop_symbol)
+#define s_pop ((OOP)&pop_symbol)
 extern struct symbol put_symbol;
-#define	s_put	((OOP)&put_symbol)
+#define s_put ((OOP)&put_symbol)
 extern struct symbol pull_symbol;
-#define	s_pull	((OOP)&pull_symbol)
+#define s_pull ((OOP)&pull_symbol)
 
 //extern KIND(nil_kind);
 extern struct object nil_object;
-#define	o_nil	((OOP)&nil_object)
+#define o_nil ((OOP)&nil_object)
 
 struct pair {
-	struct object	o;
-	OOP				h;
-	OOP				t;
+    struct object   o;
+    OOP             h;
+    OOP             t;
 };
-#define	as_pair(oop)	((struct pair *)(oop))
-extern OOP		pair_new(OOP h, OOP t);
+#define as_pair(oop) ((struct pair *)(oop))
+extern OOP pair_new(OOP h, OOP t);
 extern KIND(pair_kind);
 
 /*
@@ -64,11 +64,11 @@ extern KIND(pair_kind);
  */
 
 extern struct symbol give_x_symbol;
-#define	s_give_x	((OOP)&give_x_symbol)
+#define s_give_x ((OOP)&give_x_symbol)
 extern struct symbol take_x_symbol;
-#define	s_take_x	((OOP)&take_x_symbol)
+#define s_take_x ((OOP)&take_x_symbol)
 
-extern OOP		queue_new();
+extern OOP queue_new();
 extern KIND(queue_kind);
 
 /*
@@ -76,25 +76,25 @@ extern KIND(queue_kind);
  */
 
 extern struct symbol bind_symbol;
-#define	s_bind	((OOP)&bind_symbol)
+#define s_bind ((OOP)&bind_symbol)
 extern struct symbol lookup_symbol;
-#define	s_lookup	((OOP)&lookup_symbol)
+#define s_lookup ((OOP)&lookup_symbol)
 
 extern struct object fail_object;
-#define	o_fail	((OOP)&fail_object)
+#define o_fail ((OOP)&fail_object)
 
 //extern KIND(empty_dict_kind);
 extern struct object empty_dict;
-#define	o_empty_dict	((OOP)&empty_dict)
+#define o_empty_dict ((OOP)&empty_dict)
 
 struct dict {
-	struct object	o;
-	OOP				name;
-	OOP				value;
-	OOP				next;
+    struct object   o;
+    OOP             name;
+    OOP             value;
+    OOP             next;
 };
-#define	as_dict(oop)	((struct dict *)(oop))
-extern OOP		dict_new(OOP name, OOP value, OOP next);
+#define as_dict(oop) ((struct dict *)(oop))
+extern OOP dict_new(OOP name, OOP value, OOP next);
 extern KIND(dict_kind);
 
 /*
@@ -102,23 +102,23 @@ extern KIND(dict_kind);
  */
 
 extern struct symbol add_symbol;
-#define	s_add	((OOP)&add_symbol)
+#define s_add ((OOP)&add_symbol)
 
 struct integer {
-	struct object	o;
-	int				n;
+    struct object   o;
+    int             n;
 };
-#define	as_integer(oop)	((struct integer *)(oop))
-extern OOP		integer_new(int value);
+#define as_integer(oop) ((struct integer *)(oop))
+extern OOP integer_new(int value);
 extern KIND(integer_kind);
 
 extern struct integer minus_1_integer;
-#define	n_minus_1	((OOP)&minus_1_integer)
+#define n_minus_1 ((OOP)&minus_1_integer)
 extern struct integer _0_integer;
-#define	n_0	((OOP)&_0_integer)
+#define n_0 ((OOP)&_0_integer)
 extern struct integer _1_integer;
-#define	n_1	((OOP)&_1_integer)
+#define n_1 ((OOP)&_1_integer)
 extern struct integer _2_integer;
-#define	n_2	((OOP)&_2_integer)
+#define n_2 ((OOP)&_2_integer)
 
 #endif /* _PAIR_H_ */

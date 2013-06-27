@@ -36,14 +36,14 @@ THE SOFTWARE.
  * scope
  */
 
-#define    o_empty_scope    (o_empty_dict)
+#define o_empty_scope (o_empty_dict)
 
 struct scope {
     struct object   o;
     OOP             dict;
     OOP             next;
 };
-#define as_scope(oop)   ((struct scope *)(oop))
+#define as_scope(oop) ((struct scope *)(oop))
 extern OOP scope_new(OOP next);
 extern KIND(scope_kind);
 
@@ -56,7 +56,7 @@ struct named_pattern {
     OOP             name;        // symbol to lookup
     OOP             scope;        // scope to search
 };
-#define as_named_pattern(oop)   ((struct named_pattern *)(oop))
+#define as_named_pattern(oop) ((struct named_pattern *)(oop))
 extern OOP named_pattern_new(OOP name, OOP scope);
 extern KIND(named_pattern_kind);
 
@@ -64,14 +64,14 @@ extern KIND(named_pattern_kind);
  * stream
  */
 
-#define    o_empty_stream    (o_nil)
+#define o_empty_stream (o_nil)
 
 struct string_stream {
-	struct object	o;
-	char *			s;
+    struct object   o;
+    char *          s;
 };
-#define	as_string_stream(oop)	((struct string_stream *)(oop))
-extern OOP		string_stream_new(char * s);
+#define as_string_stream(oop) ((struct string_stream *)(oop))
+extern OOP string_stream_new(char * s);
 extern KIND(string_stream_kind);
 
 /*

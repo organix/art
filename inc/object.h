@@ -34,7 +34,7 @@ THE SOFTWARE.
 typedef struct object * OOP;
 #define KIND(kind) OOP kind(OOP self, va_list args)
 typedef OOP (*DISP)(OOP self, va_list args);
-//#define    DELEGATE(kind) (kind)(self, args) --- FIXME: ARGS CANNOT BE RE-TAKEN!
+//#define DELEGATE(kind) (kind)(self, args) --- FIXME: ARGS CANNOT BE RE-TAKEN!
 
 /*
  * object
@@ -44,15 +44,15 @@ struct object {
     DISP            kind;
 };
 
-#define take_arg()  va_arg(args, OOP)
+#define take_arg() va_arg(args, OOP)
 
-extern OOP      object_call(OOP obj, ...);
-extern OOP      object_new(DISP kind, size_t size);
-#define    object_alloc(structure, kind)    ((structure *)object_new((kind), sizeof(structure)))
+extern OOP object_call(OOP obj, ...);
+extern OOP object_new(DISP kind, size_t size);
+#define object_alloc(structure, kind) ((structure *)object_new((kind), sizeof(structure)))
 
 //extern KIND(undef_kind);
 extern struct object undef_object;
-#define o_undef     ((OOP)&undef_object)
+#define o_undef ((OOP)&undef_object)
 
 extern KIND(object_kind);
 
@@ -64,16 +64,16 @@ struct symbol {
     struct object   o;
     char *          s;
 };
-#define as_symbol(oop)      ((struct symbol *)(oop))
-extern OOP      symbol_new(char * name);
+#define as_symbol(oop) ((struct symbol *)(oop))
+extern OOP symbol_new(char * name);
 extern KIND(symbol_kind);
 
 extern struct symbol _t_symbol;
-#define o_true      ((OOP)&_t_symbol)
+#define o_true ((OOP)&_t_symbol)
 extern struct symbol _f_symbol;
-#define o_false     ((OOP)&_f_symbol)
+#define o_false ((OOP)&_f_symbol)
 
 extern struct symbol eq_p_symbol;
-#define s_eq_p      ((OOP)&eq_p_symbol)
+#define s_eq_p ((OOP)&eq_p_symbol)
 
 #endif /* _OBJECT_H_ */
